@@ -157,6 +157,13 @@ export default function ListsPage() {
 >
   使い方
 </button>
+<button
+  style={{ marginTop: 12, marginLeft: 8, border: "1px solid #ddd", borderRadius: 10, padding: "8px 12px" }}
+  onClick={() => router.push("/concept")}
+>
+  コンセプト
+</button>
+
 
       {mode === "checking" ? (
         <p style={{ marginTop: 8, opacity: 0.8 }}>Checking session…</p>
