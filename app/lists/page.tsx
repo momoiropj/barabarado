@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase/client";
 
 type ListRow = {
   id: string;
@@ -10,15 +10,11 @@ type ListRow = {
   created_at: string;
 };
 
-const GUEST_STORAGE_KEY = "bbdo_guest_lists_v1";
-
-function nowIso() {
-  return new Date().toISOString();
-}
+const GUEST_LISTS_KEY = "bbdo_guest_lists_v1";
 
 function loadGuestLists(): ListRow[] {
   try {
-    const raw = localStorage.getItem(GUEST_STORAGE_KEY);
+    const raw = localStorage.getItem(GUEST_LISTS_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
@@ -29,7 +25,14 @@ function loadGuestLists(): ListRow[] {
 }
 
 function saveGuestLists(lists: ListRow[]) {
-  localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify(lists));
+  try {
+    localStorage.setItem(GUEST_LISTS_KEY, JSON.stringify(lists));
+  } catch {}
+}
+
+function makeId() {
+  // UUIDじゃなくてもOK：ゲスト用途＆URLキーとして十分ユニーク
+  return `g_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 }
 
 export default function ListsPage() {
@@ -37,58 +40,91 @@ export default function ListsPage() {
 
   const [mode, setMode] = useState<"checking" | "guest" | "authed">("checking");
   const [email, setEmail] = useState<string>("");
+
   const [lists, setLists] = useState<ListRow[]>([]);
   const [newTitle, setNewTitle] = useState("");
 
   const isGuest = mode === "guest";
   const isAuthed = mode === "authed";
 
-  // ログイン状態を確認（ログインしてなくてもOKにする）
-  const detectMode = async () => {
-    const { data } = await supabase.auth.getUser();
-    const user = data.user;
+  const S = useMemo(
+    () => ({
+      btn: {
+        padding: "10px 14px",
+        borderRadius: 10,
+        border: "1px solid var(--border)",
+        background: "var(--control-bg)",
+        color: "var(--control-text)",
+      } as const,
+      input: {
+        flex: 1,
+        padding: 10,
+        border: "1px solid var(--border)",
+        borderRadius: 10,
+        background: "var(--control-bg)",
+        color: "var(--control-text)",
+        minWidth: 240,
+      } as const,
+      card: {
+        padding: 14,
+        border: "1px solid var(--border2)",
+        borderRadius: 12,
+        background: "var(--card)",
+      } as const,
+      muted: { color: "var(--muted)" } as const,
+      danger: { color: "var(--danger)" } as const,
+      linkBtn: {
+        textDecoration: "underline",
+        border: "none",
+        background: "transparent",
+        padding: 0,
+        cursor: "pointer",
+        color: "var(--control-text)",
+      } as const,
+      note: {
+        marginTop: 12,
+        padding: 12,
+        border: "1px solid var(--border2)",
+        borderRadius: 12,
+        background: "var(--card2)",
+      } as const,
+    }),
+    []
+  );
 
-    if (!user) {
-      setMode("guest");
-      setEmail("");
-      // ゲストはローカルから読む
-      setLists(loadGuestLists());
-      return null;
+  const loadLists = async () => {
+    setMode("guest");
+    setEmail("");
+
+    // まずゲスト保存を表示（即表示できる）
+    const guest = loadGuestLists();
+    setLists(guest);
+
+    // ログインしてたら supabase の lists を優先表示
+    try {
+      const { data } = await supabase.auth.getSession();
+      const user = data.session?.user;
+
+      if (!user) return;
+
+      setMode("authed");
+      setEmail(user.email ?? "");
+
+      const { data: rows, error } = await supabase
+        .from("lists")
+        .select("id,title,created_at")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.warn(error.message);
+        return;
+      }
+
+      setLists((rows ?? []) as ListRow[]);
+    } catch (e) {
+      console.warn(e);
     }
-
-    setMode("authed");
-    setEmail(user.email ?? "");
-    return user;
   };
-
- const loadLists = async () => {
-  // まずゲストとして即表示（ここがポイント）
-  setMode("guest");
-  setEmail("");
-  setLists(loadGuestLists());
-
-  // その後に「ログインしてたら」上書きする（失敗してもOK）
-  try {
-    const { data } = await supabase.auth.getSession(); // getUserより軽い
-    const user = data.session?.user;
-    if (!user) return;
-
-    setMode("authed");
-    setEmail(user.email ?? "");
-
-    const { data: rows, error } = await supabase
-      .from("lists")
-      .select("id,title,created_at")
-      .order("created_at", { ascending: false });
-
-    if (error) return alert(error.message);
-    setLists((rows ?? []) as ListRow[]);
-  } catch {
-    // 何かあってもゲスト表示はできてるので黙ってOK
-    return;
-  }
-};
-
 
   useEffect(() => {
     loadLists();
@@ -99,174 +135,123 @@ export default function ListsPage() {
     const title = newTitle.trim();
     if (!title) return;
 
-    // ゲスト：localStorageに追加
-    if (isGuest) {
-      const next: ListRow[] = [
-        { id: crypto.randomUUID(), title, created_at: nowIso() },
-        ...lists,
-      ];
-      setLists(next);
-      saveGuestLists(next);
-      setNewTitle("");
-      return;
+    if (isAuthed) {
+      // Supabaseに作る
+      const { data: sess } = await supabase.auth.getSession();
+      const user = sess.session?.user;
+      if (!user) {
+        // セッション切れなど
+        setMode("guest");
+        setEmail("");
+      } else {
+        const { data, error } = await supabase
+          .from("lists")
+          .insert({ title, user_id: user.id })
+          .select("id,title,created_at")
+          .single();
+
+        if (error) return alert(error.message);
+
+        setNewTitle("");
+        // 追加して再表示
+        setLists((prev) => [{ ...(data as any) }, ...prev]);
+        router.push(`/lists/${(data as any).id}`);
+        return;
+      }
     }
 
-    // ログイン：Supabaseに追加
-    const { data } = await supabase.auth.getUser();
-    const user = data.user;
-    if (!user) {
-      // 念のため：途中でログアウトしてたらゲストに落とす
-      setMode("guest");
-      setEmail("");
-      const g = loadGuestLists();
-      setLists(g);
-      return;
-    }
-
-    const { error } = await supabase.from("lists").insert({
+    // ゲストに作る
+    const row: ListRow = {
+      id: makeId(),
       title,
-      user_id: user.id,
-    });
+      created_at: new Date().toISOString(),
+    };
 
-    if (error) return alert(error.message);
-
+    const next = [row, ...lists];
+    setLists(next);
+    saveGuestLists(next);
     setNewTitle("");
-    loadLists();
+    router.push(`/lists/${row.id}`);
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch {}
     setMode("guest");
     setEmail("");
-    const g = loadGuestLists();
-    setLists(g);
+    loadLists();
+    router.refresh?.();
   };
 
-  const headerText = useMemo(() => {
-    if (mode === "checking") return "Loading…";
-    if (isGuest) return "Lists (Guest Mode)";
-    return "Lists";
-  }, [mode, isGuest]);
+  const goHelp = () => router.push("/help");
+  const goConcept = () => router.push("/concept");
 
   return (
-    <main style={{ padding: 24, maxWidth: 720, margin: "0 auto" }}>
-      <h1 style={{ fontSize: 28, fontWeight: 700 }}>{headerText}</h1>
+    <main style={{ padding: 24, maxWidth: 860, margin: "0 auto" }}>
+      <h1 style={{ fontSize: 28, fontWeight: 800, margin: 0 }}>Lists</h1>
 
-{/* ▼ ゲストユーザー向けの注意文 ▼ */}
-<section
-  style={{
-    marginTop: 12,
-    padding: 12,
-    border: "1px solid #eee",
-    borderRadius: 12,
-    background: "#fafafa",
-  }}
->
-  <h2 style={{ fontSize: 14, fontWeight: 800, margin: 0 }}>テスト利用の注意（ゲストモード）</h2>
-  <ul style={{ marginTop: 10, paddingLeft: 18, lineHeight: 1.8, fontSize: 13, opacity: 0.9 }}>
-    <li>
-      入力した内容は、この端末のブラウザ内に保存されるよ（ログインなし）。<b>別の端末・別ブラウザでは見えない</b>。
-    </li>
-    <li>
-      ブラウザのデータ削除などで内容が消えることがあるので、大事なものは<b>「コピー」</b>でメモ帳やNotionに保存してね。
-    </li>
-    <li>共有PCでの利用はおすすめしない（他の人に見られる可能性あり）。</li>
-    <li>
-      AI分解／プロンプト発行を使うと入力内容がAIに送信されるよ。<b>住所・電話・口座・健康情報・社外秘は入れないで</b>。
-      固有名詞は「A社」「Bさん」みたいに伏せ字でOK。
-    </li>
-    <li>このパスコードはテストユーザー限定。第三者への共有はしないでね。</li>
-  </ul>
-</section>
-{/* ▲ ここまで ▲ */}
+      <div style={{ marginTop: 8, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        {isAuthed ? (
+          <p style={{ margin: 0, ...S.muted }}>Logged in as: {email}</p>
+        ) : (
+          <p style={{ margin: 0, ...S.muted }}>ゲストモード：この端末のブラウザ内に保存されるよ</p>
+        )}
 
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button style={S.btn} onClick={goConcept}>コンセプト</button>
+          <button style={S.btn} onClick={goHelp}>使い方</button>
+        </div>
+      </div>
 
+      {/* ゲスト注意文（Listsにも表示） */}
+      <section style={S.note}>
+        <div style={{ fontWeight: 800 }}>テスト利用の注意（ゲストモード）</div>
+        <ul style={{ marginTop: 8, paddingLeft: 18, lineHeight: 1.8, fontSize: 13, ...S.muted }}>
+          <li>内容はこの端末のブラウザ内に保存される（別端末では見えない）</li>
+          <li>ブラウザのデータ削除で消えることがあるので、大事なものはコピーで保存</li>
+          <li>個人情報・社外秘は入れない（固有名詞は「A社」「Bさん」等でOK）</li>
+        </ul>
+      </section>
 
-<button
-  style={{ marginTop: 12, border: "1px solid #ddd", borderRadius: 10, padding: "8px 12px" }}
-  onClick={() => router.push("/help")}
->
-  使い方
-</button>
-<button
-  style={{ marginTop: 12, marginLeft: 8, border: "1px solid #ddd", borderRadius: 10, padding: "8px 12px" }}
-  onClick={() => router.push("/concept")}
->
-  コンセプト
-</button>
+      {/* 作成UI */}
+      <div style={{ marginTop: 16, display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <input
+          style={S.input}
+          placeholder="New list title..."
+          value={newTitle}
+          onChange={(e) => setNewTitle(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") createList();
+          }}
+        />
+        <button style={S.btn} onClick={createList} disabled={!newTitle.trim()}>
+          Add
+        </button>
+        <button style={S.btn} onClick={signOut} disabled={!isAuthed}>
+          Sign out
+        </button>
+      </div>
 
-
-      {mode === "checking" ? (
-        <p style={{ marginTop: 8, opacity: 0.8 }}>Checking session…</p>
-      ) : (
-        <>
-          {isAuthed ? (
-            <p style={{ marginTop: 8 }}>Logged in as: {email}</p>
-          ) : (
-            <p style={{ marginTop: 8, opacity: 0.8 }}>
-              ゲストモード：この端末のブラウザ内に保存されるよ（別端末には引き継がれない）
-            </p>
-          )}
-
-          <div style={{ marginTop: 16, display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <input
-              style={{ flex: 1, minWidth: 240, padding: 10, border: "1px solid #ddd", borderRadius: 8 }}
-              placeholder="まずはタイトルを入れてね"
-              value={newTitle}
-              onChange={(e) => setNewTitle(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") createList();
-              }}
-            />
-            <button
-              style={{ padding: "10px 14px", borderRadius: 8, border: "1px solid #ddd" }}
-              onClick={createList}
-              disabled={!newTitle.trim()}
-            >
-              Add
-            </button>
-
-            {isAuthed ? (
-              <button
-                style={{ padding: "10px 14px", borderRadius: 8, border: "1px solid #ddd" }}
-                onClick={signOut}
-              >
-                Sign out
-              </button>
-            ) : (
-              <button
-                style={{ padding: "10px 14px", borderRadius: 8, border: "1px solid #ddd" }}
-                onClick={() => router.push("/login")}
-              >
-                ログイン（任意）
-              </button>
-            )}
-          </div>
-
-          <ul style={{ marginTop: 20, paddingLeft: 18 }}>
+      {/* Lists */}
+      <section style={{ marginTop: 16, ...S.card }}>
+        {lists.length === 0 ? (
+          <p style={{ margin: 0, ...S.muted }}>No lists yet. Add one.</p>
+        ) : (
+          <ul style={{ margin: 0, paddingLeft: 18 }}>
             {lists.map((l) => (
               <li key={l.id} style={{ marginBottom: 10 }}>
-                <button
-                  style={{
-                    textDecoration: "underline",
-                    border: "none",
-                    background: "transparent",
-                    padding: 0,
-                    cursor: "pointer",
-                  }}
-                  onClick={() => router.push(`/lists/${l.id}`)}
-                >
+                <button style={S.linkBtn} onClick={() => router.push(`/lists/${l.id}`)}>
                   {l.title}
                 </button>
+                <span style={{ marginLeft: 10, fontSize: 12, ...S.muted }}>
+                  {l.created_at ? new Date(l.created_at).toLocaleString() : ""}
+                </span>
               </li>
             ))}
           </ul>
-
-          {lists.length === 0 && (
-            <p style={{ marginTop: 16, opacity: 0.8 }}>No lists yet. Add one.</p>
-          )}
-        </>
-      )}
+        )}
+      </section>
     </main>
   );
 }

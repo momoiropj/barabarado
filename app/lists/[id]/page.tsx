@@ -50,7 +50,7 @@ function baseBuckets(): Bucket[] {
     { key: "plan", label: "現状・課題・制約（As-is）", items: [] },
     { key: "budget", label: "予算・時間・リソース", items: [] },
     { key: "procedure", label: "手順・やり方（How）", items: [] },
-    { key: "misc", label: "メモ・その他", items: [] },
+    { key: "setup", label: "メモ・その他", items: [] },
   ];
 }
 
@@ -213,6 +213,7 @@ export default function Page() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          goal: item?.title ?? "",
           text: freeText ?? "",
           buckets: current,
         }),
@@ -277,6 +278,7 @@ export default function Page() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          goal: item.title,
           title: item.title,
           buckets,
         }),
@@ -579,4 +581,8 @@ export default function Page() {
     </main>
   );
 }
+
+
+
+
 

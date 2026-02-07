@@ -1,0 +1,202 @@
+warning: in the working copy of 'app/globals.css', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'app/lists/[id]/page.tsx', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/app/globals.css b/app/globals.css[m
+[1mindex a2dc41e..e973e28 100644[m
+[1m--- a/app/globals.css[m
+[1m+++ b/app/globals.css[m
+[36m@@ -1,26 +1,94 @@[m
+ @import "tailwindcss";[m
+ [m
+[32m+[m[32m/* ===== BarabaraDo Theme Tokens (Light/Dark) ===== */[m
+ :root {[m
+[31m-  --background: #ffffff;[m
+[31m-  --foreground: #171717;[m
+[31m-}[m
+[32m+[m[32m  color-scheme: light dark;[m
+[32m+[m
+[32m+[m[32m  /* base */[m
+[32m+[m[32m  --bg: #ffffff;[m
+[32m+[m[32m  --text: #111827;[m
+[32m+[m[32m  --muted: rgba(17, 24, 39, 0.72);[m
+[32m+[m
+[32m+[m[32m  /* surfaces */[m
+[32m+[m[32m  --card: #ffffff;[m
+[32m+[m[32m  --card2: #fafafa;[m
+[32m+[m
+[32m+[m[32m  /* borders */[m
+[32m+[m[32m  --border: #dddddd;[m
+[32m+[m[32m  --border2: #eeeeee;[m
+[32m+[m
+[32m+[m[32m  /* inputs/buttons */[m
+[32m+[m[32m  --control-bg: #ffffff;[m
+[32m+[m[32m  --control-text: #111827;[m
+[32m+[m
+[32m+[m[32m  /* feedback */[m
+[32m+[m[32m  --danger: #dc2626;[m
+ [m
+[31m-@theme inline {[m
+[31m-  --color-background: var(--background);[m
+[31m-  --color-foreground: var(--foreground);[m
+[31m-  --font-sans: var(--font-geist-sans);[m
+[31m-  --font-mono: var(--font-geist-mono);[m
+[32m+[m[32m  /* focus ring */[m
+[32m+[m[32m  --ring: rgba(59, 130, 246, 0.45); /* 青系 */[m
+ }[m
+ [m
+ @media (prefers-color-scheme: dark) {[m
+   :root {[m
+[31m-    --background: #0a0a0a;[m
+[31m-    --foreground: #ededed;[m
+[32m+[m[32m    --bg: #0b0f14;[m
+[32m+[m[32m    --text: #e6edf3;[m
+[32m+[m[32m    --muted: rgba(230, 237, 243, 0.72);[m
+[32m+[m
+[32m+[m[32m    --card: #0f172a;[m
+[32m+[m[32m    --card2: #0b1220;[m
+[32m+[m
+[32m+[m[32m    --border: #2b3440;[m
+[32m+[m[32m    --border2: #1f2937;[m
+[32m+[m
+[32m+[m[32m    --control-bg: #0f172a;[m
+[32m+[m[32m    --control-text: #e6edf3;[m
+[32m+[m
+[32m+[m[32m    --danger: #fb7185;[m
+[32m+[m[32m    --ring: rgba(147, 197, 253, 0.45);[m
+   }[m
+ }[m
+ [m
+[32m+[m[32mhtml,[m
+ body {[m
+[31m-  background: var(--background);[m
+[31m-  color: var(--foreground);[m
+[31m-  font-family: Arial, Helvetica, sans-serif;[m
+[32m+[m[32m  background: var(--bg);[m
+[32m+[m[32m  color: var(--text);[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32ma {[m
+[32m+[m[32m  color: inherit;[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32minput,[m
+[32m+[m[32mtextarea,[m
+[32m+[m[32mbutton {[m
+[32m+[m[32m  background: var(--control-bg);[m
+[32m+[m[32m  color: var(--control-text);[m
+[32m+[m[32m  border-color: var(--border);[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32m::placeholder {[m
+[32m+[m[32m  color: var(--muted);[m
+[32m+[m[32m  opacity: 0.85;[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32m/* 視認性と操作性UP（地味に効く） */[m
+[32m+[m[32mbutton {[m
+[32m+[m[32m  cursor: pointer;[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32mbutton:disabled {[m
+[32m+[m[32m  cursor: not-allowed;[m
+[32m+[m[32m  opacity: 0.6;[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32minput:focus,[m
+[32m+[m[32mtextarea:focus,[m
+[32m+[m[32mbutton:focus {[m
+[32m+[m[32m  outline: none;[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32minput:focus-visible,[m
+[32m+[m[32mtextarea:focus-visible,[m
+[32m+[m[32mbutton:focus-visible {[m
+[32m+[m[32m  box-shadow: 0 0 0 3px var(--ring);[m
+ }[m
+[1mdiff --git a/app/help/page.tsx b/app/help/page.tsx[m
+[1mindex 834a352..ca7517a 100644[m
+[1m--- a/app/help/page.tsx[m
+[1m+++ b/app/help/page.tsx[m
+[36m@@ -1,110 +1,181 @@[m
+[32m+[m[32mimport Link from "next/link";[m
+[32m+[m
+[32m+[m[32mexport const dynamic = "force-dynamic";[m
+[32m+[m
+ export default function HelpPage() {[m
+[32m+[m[32m  const S = {[m
+[32m+[m[32m    page: { padding: 24, maxWidth: 860, margin: "0 auto" as const },[m
+[32m+[m[32m    title: { fontSize: 28, fontWeight: 900, margin: 0 },[m
+[32m+[m[32m    sub: { marginTop: 10, color: "var(--muted)", lineHeight: 1.9 },[m
+[32m+[m[32m    card: {[m
+[32m+[m[32m      marginTop: 16,[m
+[32m+[m[32m      padding: 14,[m
+[32m+[m[32m      border: "1px solid var(--border2)",[m
+[32m+[m[32m      borderRadius: 12,[m
+[32m+[m[32m      background: "var(--card)",[m
+[32m+[m[32m    },[m
+[32m+[m[32m    note: {[m
+[32m+[m[32m      marginTop: 16,[m
+[32m+[m[32m      padding: 14,[m
+[32m+[m[32m      border: "1px solid var(--border2)",[m
+[32m+[m[32m      borderRadius: 12,[m
+[32m+[m[32m      background: "var(--card2)",[m
+[32m+[m[32m    },[m
+[32m+[m[32m    h2: { margin: 0, fontSize: 18, fontWeight: 900 },[m
+[32m+[m[32m    h3: { margin: "12px 0 0", fontSize: 15, fontWeight: 800 },[m
+[32m+[m[32m    ul: { marginTop: 10, paddingLeft: 18, lineHeight: 1.9 },[m
+[32m+[m[32m    btnLink: {[m
+[32m+[m[32m      display: "inline-block",[m
+[32m+[m[32m      border: "1px solid var(--border)",[m
+[32m+[m[32m      borderRadius: 10,[m
+[32m+[m[32m      padding: "8px 12px",[m
+[32m+[m[32m      textDecoration: "none",[m
+[32m+[m[32m      background: "var(--control-bg)",[m
+[32m+[m[32m      color: "var(--control-text)",[m
+[32m+[m[32m    },[m
+[32m+[m[32m    btnRow: { marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" as const },[m
+[32m+[m[32m    danger: { color: "var(--danger)" },[m
+[32m+[m[32m    codeBox: {[m
+[32m+[m[32m      marginTop: 10,[m
+[32m+[m[32m      padding: 12,[m
+[32m+[m[32m      border: "1px solid var(--border2)",[m
+[32m+[m[32m      borderRadius: 12,[m
+[32m+[m[32m      background: "var(--card)",[m
+[32m+[m[32m      overflowX: "auto" as const,[m
+[32m+[m[32m      fontSize: 13,[m
+[32m+[m[32m      lineHeight: 1.7,[m
+[32m+[m[32m    },[m
+[32m+[m[32m  };[m
+[32m+[m
+   return ([m
+[31m-    <main style={{ padding: 24, maxWidth: 860, margin: "0 auto" }}>[m
+[31m-      <h1 style={{ fontSize: 28, fontWeight: 800, margin: 0 }}>使い方</h1>[m
+[31m-      <p style={{ marginTop: 10, opacity: 0.8 }}>[m
+[31m-        BarabaraDoは「分解して終わり」じゃなくて、「実行まで進む」ためのToDo分解ツール。[m
+[31m-        下書き→分類→編集→プロンプト発行、の流れで進める。[m
+[32m+[m[32m    <main style={S.page}>[m
+[32m+[m[32m      {/* 上：戻る */}[m
+[32m+[m[32m      <div style={S.btnRow}>[m
+[32m+[m[32m        <Link href="/lists" style={S.btnLink}>[m
+[32m+[m[32m          ← ToDoリストに戻る[m
+[32m+[m[32m        </Link>[m
+[32m+[m[32m        <Link href="/concept" style={S.btnLink}>[m
+[32m+[m[32m          コンセプトを見る →[m
+[32m+[m[32m        </Link>[m
+[32m+[m[32m      </div>[m
+[32m+[m
+[32m+[m[32m      <h1 style={{ ...S.title, marginTop: 14 }}>使い方</h1>[m
+[32m+[m[32m      <p style={S.sub}>[m
+[32m+[m[32m        このツールは「思いつきを、行動できる形にする」ための分解器。[m
+[32m+[m[32m        <b>自由に書く → AIで整理 → 自分で調整 → 最後にプロンプト発行</b>で、あなたのAIと自走できる状態まで持っていく。[m
+       </p>[m
+ [m
+[31m-      <section style={{ marginTop: 18, padding: 14, border: "1px solid #eee", borderRadius: 12 }}>[m
+[31m-        <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>まず知っておくこと</h2>[m
+[31m-        <ul style={{ marginTop: 10, lineHeight: 1.8 }}>[m
+[31m-          <li>[m
+[31m-            <b>下書き</b>は自由メモ。思いついた順でOK。AIに取り込んでも<b>消えない</b>。[m
+[31m-          </li>[m
+[31m-          <li>[m
+[31m-            <b>チェックリスト</b>は5カテゴリ（目的/段取り/予算/手続き/準備）に整理された実行プラン。[m
+[31m-            追加・削除・チェックできる。[m
+[31m-          </li>[m
+[32m+[m[32m      <section style={S.
