@@ -1,9 +1,12 @@
 ﻿"use client";
 
+import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { useState } from "react";
 
-export default function GatePage() {
+// /gate はビルド時に静的生成させない（ここ重要）
+export const dynamic = "force-dynamic";
+
+function GateInner() {
   const searchParams = useSearchParams();
   const next = searchParams.get("next") || "/";
   const [code, setCode] = useState("");
@@ -60,5 +63,14 @@ export default function GatePage() {
 
       {err && <p style={{ marginTop: 12, color: "crimson" }}>{err}</p>}
     </main>
+  );
+}
+
+export default function GatePage() {
+  // useSearchParams() を使う部分を Suspense で包む（ここ重要）
+  return (
+    <Suspense fallback={<div style={{ padding: 16 }}>読み込み中…</div>}>
+      <GateInner />
+    </Suspense>
   );
 }
