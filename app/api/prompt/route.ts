@@ -1,4 +1,6 @@
 import OpenAI from "openai";
+import { rateLimitOrThrow } from "@/app/api/_lib/ratelimit";
+
 
 export const runtime = "nodejs";
 
@@ -23,6 +25,13 @@ type Bucket = {
 
 export async function POST(req: Request) {
   try {
+rateLimitOrThrow(req, {
+  route: "prompt",
+  windowMs: 60_000,
+  maxInWindow: 10,
+  maxPerDay: 200,
+});
+
     if (!process.env.OPENAI_API_KEY) {
       return Response.json({ error: "OPENAI_API_KEY is missing" }, { status: 500 });
     }
