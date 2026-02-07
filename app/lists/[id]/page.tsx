@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { buildIssuePrompt } from "@/lib/issuePrompt";
 
 type ListRow = {
   id: string;
@@ -153,7 +154,7 @@ export default function Page() {
   const [catLoading, setCatLoading] = useState(false);
   const [catError, setCatError] = useState("");
 
-  // prompt
+  // prompt（最終発行物：MarkdownでそのままAIに貼れる）
   const [prompt, setPrompt] = useState("");
   const [promptLoading, setPromptLoading] = useState(false);
   const [promptError, setPromptError] = useState("");
@@ -161,7 +162,7 @@ export default function Page() {
   useEffect(() => {
     if (!id) return;
 
-    // guest listから探す（まずはこれだけで成立させる）
+    // guest listから探す
     const lists = loadGuestLists();
     const found = lists.find((l) => l.id === id) ?? null;
     setItem(found);
@@ -247,7 +248,9 @@ export default function Page() {
 
   const deleteItem = (bucketKey: string, itemId: string) => {
     if (!id || !buckets) return;
-    const next = buckets.map((b) => (b.key !== bucketKey ? b : { ...b, items: (b.items ?? []).filter((it) => it.id !== itemId) }));
+    const next = buckets.map((b) =>
+      b.key !== bucketKey ? b : { ...b, items: (b.items ?? []).filter((it) => it.id !== itemId) }
+    );
     setBuckets(next);
     saveChecklist(id, next, prompt ?? "");
   };
@@ -266,40 +269,71 @@ export default function Page() {
     saveChecklist(id, next, prompt ?? "");
   };
 
-  const generatePrompt = async (): Promise<string | null> => {
-    if (!item || !id) return null;
-    if (!buckets || buckets.length === 0) return null;
+  // ✅ 発行用：bucketsをMarkdownにしてプロンプトへ同梱（ユーザーのAIが読みやすい）
+  const formatBucketsMarkdownForPrompt = () => {
+    if (!buckets || buckets.length === 0) return "_（まだチェックリストがありません）_";
 
-    setPromptError("");
-    setPromptLoading(true);
-
-    try {
-      const res = await fetch("/api/prompt", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          goal: item.title,
-          title: item.title,
-          buckets,
-        }),
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error ?? "API error");
-
-      const p = String(data?.prompt ?? "");
-      setPrompt(p);
-      saveChecklist(id, buckets, p);
-      return p;
-    } catch (e: any) {
-      setPromptError(e?.message ?? "Failed");
-      return null;
-    } finally {
-      setPromptLoading(false);
-    }
+    return buckets
+      .map((b) => {
+        const head = `### ${b.label || "カテゴリ"}\n`;
+        const lines =
+          (b.items ?? []).length > 0
+            ? (b.items ?? [])
+                .map((it) => {
+                  const mark = it.done ? "x" : " ";
+                  const est = typeof it.estimate_min === "number" ? ` (${it.estimate_min}m)` : "";
+                  return `- [${mark}] ${it.title}${est}`;
+                })
+                .join("\n")
+            : "- [ ] （空）";
+        return head + lines;
+      })
+      .join("\n\n");
   };
 
-  // ===== Markdown copy =====
+  // ✅ 「プロンプト発行（最終）」：Markdownの“バトンパスプロンプト”を生成して prompt に入れる
+const generatePrompt = async (): Promise<string | null> => {
+  if (!item || !id) return null;
+  if (!buckets || buckets.length === 0) return null;
+
+  setPromptError("");
+  setPromptLoading(true);
+
+  try {
+    const base = buildIssuePrompt({
+      todo: item.title,
+      context: freeText,
+    });
+
+    const checklistMd = formatBucketsMarkdownForPrompt();
+
+    const final = `${base}
+
+---
+
+## 現時点のチェックリスト
+以下は現時点でチェックリストになります。
+
+${checklistMd}
+`;
+
+    setPrompt(final);
+    saveChecklist(id, buckets, final);
+
+    // ✅ ここが追加：発行と同時にコピー
+    await navigator.clipboard.writeText(final);
+    alert("プロンプトを発行してコピーしたよ（Markdown）");
+
+    return final;
+  } catch (e: any) {
+    setPromptError(e?.message ?? "Failed");
+    return null;
+  } finally {
+    setPromptLoading(false);
+  }
+};
+
+  // ===== Markdown copy（promptはすでにMarkdown完成物） =====
   const formatChecklistMarkdown = () => {
     if (!item) return "";
     const header = `## Checklist\n**ToDo:** ${item.title}\n\n`;
@@ -321,8 +355,6 @@ export default function Page() {
     return header + body;
   };
 
-  const formatPromptMarkdown = (p: string) => `## Prompt\n${p}\n`;
-
   const copyChecklistOnly = async () => {
     const md = formatChecklistMarkdown();
     if (!md) return;
@@ -330,9 +362,10 @@ export default function Page() {
     alert("Copied checklist (Markdown)");
   };
 
+  // ✅ promptはそのまま貼れるMarkdown完成物なので、加工しないでコピー
   const copyPromptOnly = async () => {
     if (!prompt) return;
-    await navigator.clipboard.writeText(formatPromptMarkdown(prompt));
+    await navigator.clipboard.writeText(prompt);
     alert("Copied prompt (Markdown)");
   };
 
@@ -350,14 +383,25 @@ export default function Page() {
       p = generated ?? "";
     }
 
-    const md = `${formatPromptMarkdown(p)}\n---\n\n${formatChecklistMarkdown()}`;
+    // すでにチェックリスト同梱なら、そのままコピーでOK（重複防止）
+    if (p.includes("以下は現時点でチェックリストになります。")) {
+      await navigator.clipboard.writeText(p);
+      alert("Copied prompt (Markdown)");
+      return;
+    }
+
+    // 万一同梱されてない形式が来た時だけ、後付けで結合
+    const md = `${p}\n\n---\n\n${formatChecklistMarkdown()}`;
     await navigator.clipboard.writeText(md);
     alert("Copied checklist + prompt (Markdown)");
   };
 
   return (
     <main style={{ padding: 24, maxWidth: 860, margin: "0 auto" }}>
-      <button style={{ border: "1px solid #ddd", borderRadius: 8, padding: "8px 12px" }} onClick={() => router.push("/lists")}>
+      <button
+        style={{ border: "1px solid #ddd", borderRadius: 8, padding: "8px 12px" }}
+        onClick={() => router.push("/lists")}
+      >
         ← Back
       </button>
 
@@ -413,7 +457,9 @@ export default function Page() {
           {/* Step 1: Free draft */}
           <section style={{ marginTop: 14, padding: 12, border: "1px solid #eee", borderRadius: 12 }}>
             <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>まず自由に書く（下書き）</h3>
-            <p style={{ marginTop: 6, opacity: 0.75, fontSize: 12 }}>思いついた順でOK。箇条書き推奨。AIで分類しても消えない。</p>
+            <p style={{ marginTop: 6, opacity: 0.75, fontSize: 12 }}>
+              思いついた順でOK。箇条書き推奨。AIで分類しても消えない。
+            </p>
 
             <textarea
               value={freeText}
@@ -434,11 +480,18 @@ export default function Page() {
             />
 
             <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid #ddd" }} onClick={categorizeMerge} disabled={catLoading}>
+              <button
+                style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid #ddd" }}
+                onClick={categorizeMerge}
+                disabled={catLoading}
+              >
                 {catLoading ? "分類中…" : "AIで5カテゴリに分ける（取り込み）"}
               </button>
 
-              <button style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid #ddd" }} onClick={createEmptyChecklist}>
+              <button
+                style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid #ddd" }}
+                onClick={createEmptyChecklist}
+              >
                 先に空のチェックリストを作る
               </button>
             </div>
@@ -513,7 +566,10 @@ export default function Page() {
                               </span>
                             </label>
 
-                            <button style={{ border: "1px solid #ddd", borderRadius: 10, padding: "6px 10px" }} onClick={() => deleteItem(b.key, it.id)}>
+                            <button
+                              style={{ border: "1px solid #ddd", borderRadius: 10, padding: "6px 10px" }}
+                              onClick={() => deleteItem(b.key, it.id)}
+                            >
                               削除
                             </button>
                           </li>
@@ -534,19 +590,35 @@ export default function Page() {
             </p>
 
             <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid #ddd" }} onClick={copyChecklistOnly} disabled={!buckets || buckets.length === 0}>
+              <button
+                style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid #ddd" }}
+                onClick={copyChecklistOnly}
+                disabled={!buckets || buckets.length === 0}
+              >
                 チェックリストをコピー（Markdown）
               </button>
 
-              <button style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid #ddd" }} onClick={generatePrompt} disabled={promptLoading || !buckets || buckets.length === 0}>
+              <button
+                style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid #ddd" }}
+                onClick={generatePrompt}
+                disabled={promptLoading || !buckets || buckets.length === 0}
+              >
                 {promptLoading ? "作成中…" : "プロンプト発行（最終）"}
               </button>
 
-              <button style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid #ddd" }} onClick={copyPromptOnly} disabled={!prompt}>
+              <button
+                style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid #ddd" }}
+                onClick={copyPromptOnly}
+                disabled={!prompt}
+              >
                 プロンプトだけコピー（Markdown）
               </button>
 
-              <button style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid #ddd" }} onClick={copyChecklistAndPrompt} disabled={!buckets || buckets.length === 0}>
+              <button
+                style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid #ddd" }}
+                onClick={copyChecklistAndPrompt}
+                disabled={!buckets || buckets.length === 0}
+              >
                 チェックリスト＋プロンプトをコピー（Markdown）
               </button>
             </div>
@@ -560,10 +632,11 @@ export default function Page() {
                 style={{
                   marginTop: 10,
                   width: "100%",
-                  height: 190,
+                  height: 260,
                   padding: 10,
                   borderRadius: 10,
                   border: "1px solid #ddd",
+                  whiteSpace: "pre-wrap",
                 }}
               />
             )}
@@ -572,17 +645,10 @@ export default function Page() {
       )}
 
       {!item && notFound && (
-        <p style={{ marginTop: 16, color: "crimson" }}>
-          このリストは見つからなかった（ゲスト保存にも無いみたい）。
-        </p>
+        <p style={{ marginTop: 16, color: "crimson" }}>このリストは見つからなかった（ゲスト保存にも無いみたい）。</p>
       )}
 
       {!item && !notFound && <p style={{ marginTop: 16, opacity: 0.8 }}>読み込み中…</p>}
     </main>
   );
 }
-
-
-
-
-
