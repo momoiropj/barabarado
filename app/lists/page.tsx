@@ -151,6 +151,12 @@ export default function ListsPage() {
   return (
     <main style={{ padding: 24, maxWidth: 720, margin: "0 auto" }}>
       <h1 style={{ fontSize: 28, fontWeight: 700 }}>{headerText}</h1>
+<button
+  style={{ marginTop: 12, border: "1px solid #ddd", borderRadius: 10, padding: "8px 12px" }}
+  onClick={() => router.push("/help")}
+>
+  使い方
+</button>
 
       {mode === "checking" ? (
         <p style={{ marginTop: 8, opacity: 0.8 }}>Checking session…</p>
