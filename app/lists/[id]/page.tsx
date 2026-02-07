@@ -23,7 +23,7 @@ type Bucket = {
   items: ChecklistItem[];
 };
 
-const GUEST_LISTS_KEY = "barabarado_guest_lists_v1";
+const GUEST_LISTS_KEY = "bbdo_guest_lists_v1";
 const checklistKey = (listId: string) => `barabarado_checklist_v3_${listId}`;
 const draftKey = (listId: string) => `barabarado_draft_${listId}`;
 
@@ -579,3 +579,4 @@ export default function Page() {
     </main>
   );
 }
+
