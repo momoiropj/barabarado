@@ -1,16 +1,14 @@
-"use client";
+﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase/client";
 
 type ListRow = {
   id: string;
   title: string;
-  created_at: string;
+  createdAt?: string;
+  updatedAt?: string;
 };
-
-type BucketKey = "motivation" | "plan" | "budget" | "procedure" | "setup";
 
 type ChecklistItem = {
   id: string;
@@ -20,33 +18,85 @@ type ChecklistItem = {
 };
 
 type Bucket = {
-  key: BucketKey;
+  key: string;
   label: string;
   items: ChecklistItem[];
 };
 
-const GUEST_LISTS_KEY = "bbdo_guest_lists_v1";
-const checklistKey = (listId: string) => `bbdo_guest_checklist_v1_${listId}`;
-const draftKey = (listId: string) => `bbdo_guest_draft_v1_${listId}`;
+const GUEST_LISTS_KEY = "barabarado_guest_lists_v1";
+const checklistKey = (listId: string) => `barabarado_checklist_v3_${listId}`;
+const draftKey = (listId: string) => `barabarado_draft_${listId}`;
+
+function safeParseJSON<T>(raw: string | null): T | null {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
+function uid(): string {
+  // crypto.randomUUID が無い環境もあるのでフォールバック
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const c: any = globalThis.crypto;
+  if (c?.randomUUID) return c.randomUUID();
+  return `id_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+}
+
+function baseBuckets(): Bucket[] {
+  return [
+    { key: "motivation", label: "気持ち・理由（Why）", items: [] },
+    { key: "plan", label: "現状・課題・制約（As-is）", items: [] },
+    { key: "budget", label: "予算・時間・リソース", items: [] },
+    { key: "procedure", label: "手順・やり方（How）", items: [] },
+    { key: "misc", label: "メモ・その他", items: [] },
+  ];
+}
+
+function normalizeBuckets(input: unknown): Bucket[] | null {
+  if (!Array.isArray(input)) return null;
+  return input.map((b: any) => ({
+    key: String(b?.key ?? uid()),
+    label: String(b?.label ?? ""),
+    items: Array.isArray(b?.items)
+      ? b.items.map((it: any) => ({
+          id: String(it?.id ?? uid()),
+          title: String(it?.title ?? ""),
+          estimate_min: Number.isFinite(Number(it?.estimate_min)) ? Number(it.estimate_min) : 5,
+          done: Boolean(it?.done),
+        }))
+      : [],
+  }));
+}
 
 function loadGuestLists(): ListRow[] {
+  const parsed = safeParseJSON<unknown>(localStorage.getItem(GUEST_LISTS_KEY));
+  if (!Array.isArray(parsed)) return [];
+  return parsed
+    .map((x: any) => ({ id: String(x?.id ?? ""), title: String(x?.title ?? "") }))
+    .filter((x) => x.id && x.title);
+}
+
+function saveGuestLists(lists: ListRow[]) {
   try {
-    const raw = localStorage.getItem(GUEST_LISTS_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed as ListRow[];
-  } catch {
-    return [];
-  }
+    localStorage.setItem(GUEST_LISTS_KEY, JSON.stringify(lists));
+  } catch {}
 }
 
 function updateGuestListTitle(listId: string, newTitle: string) {
   const lists = loadGuestLists();
   const next = lists.map((l) => (l.id === listId ? { ...l, title: newTitle } : l));
-  try {
-    localStorage.setItem(GUEST_LISTS_KEY, JSON.stringify(next));
-  } catch {}
+  saveGuestLists(next);
+}
+
+function loadChecklist(listId: string): { buckets: Bucket[] | null; prompt: string } | null {
+  const parsed = safeParseJSON<any>(localStorage.getItem(checklistKey(listId)));
+  if (!parsed) return null;
+
+  const buckets = normalizeBuckets(parsed?.buckets);
+  const prompt = String(parsed?.prompt ?? "");
+  return { buckets, prompt };
 }
 
 function saveChecklist(listId: string, buckets: Bucket[] | null, prompt: string) {
@@ -63,17 +113,11 @@ function saveChecklist(listId: string, buckets: Bucket[] | null, prompt: string)
   } catch {}
 }
 
-function loadChecklist(listId: string): { buckets: Bucket[] | null; prompt: string } | null {
+function loadDraft(listId: string): string {
   try {
-    const raw = localStorage.getItem(checklistKey(listId));
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return {
-      buckets: (parsed?.buckets ?? null) as Bucket[] | null,
-      prompt: String(parsed?.prompt ?? ""),
-    };
+    return localStorage.getItem(draftKey(listId)) ?? "";
   } catch {
-    return null;
+    return "";
   }
 }
 
@@ -83,200 +127,105 @@ function saveDraft(listId: string, text: string) {
   } catch {}
 }
 
-function loadDraft(listId: string): string {
-  try {
-    return localStorage.getItem(draftKey(listId)) ?? "";
-  } catch {
-    return "";
-  }
-}
-
-function baseBuckets(): Bucket[] {
-  return [
-    { key: "motivation", label: "目的・動機", items: [] },
-    { key: "plan", label: "段取り（期限/見積）", items: [] },
-    { key: "budget", label: "予算（仮でOK）", items: [] },
-    { key: "procedure", label: "手続き（連絡/申請/予約）", items: [] },
-    { key: "setup", label: "準備（道具/環境/リスク）", items: [] },
-  ];
-}
-
-function makeId() {
-  return `m_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-}
-
-export default function ListDetailPage() {
+export default function Page() {
   const router = useRouter();
-  const params = useParams<{ id: string }>();
-  const id = params?.id;
+  const params = useParams();
+  const id = useMemo(() => String((params as any)?.id ?? ""), [params]);
 
-  const [mode, setMode] = useState<"checking" | "guest" | "authed">("checking");
-  const [email, setEmail] = useState("");
   const [item, setItem] = useState<ListRow | null>(null);
   const [notFound, setNotFound] = useState(false);
+
+  // step1
+  const [freeText, setFreeText] = useState("");
+
+  // checklist
+  const [buckets, setBuckets] = useState<Bucket[] | null>(null);
+
+  // add
+  const [addText, setAddText] = useState<Record<string, string>>({});
 
   // title edit
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const [titleError, setTitleError] = useState("");
 
-  // free draft
-  const [freeText, setFreeText] = useState("");
+  // categorize
   const [catLoading, setCatLoading] = useState(false);
   const [catError, setCatError] = useState("");
 
-  // checklist
-  const [buckets, setBuckets] = useState<Bucket[] | null>(null);
-
-  // manual add
-  const [addText, setAddText] = useState<Record<string, string>>({});
-
-  // prompt (最後だけ)
+  // prompt
   const [prompt, setPrompt] = useState("");
   const [promptLoading, setPromptLoading] = useState(false);
   const [promptError, setPromptError] = useState("");
 
-  const isGuest = mode === "guest";
-  const isAuthed = mode === "authed";
+  useEffect(() => {
+    if (!id) return;
 
-  const headerText = useMemo(() => {
-    if (mode === "checking") return "Loading…";
-    if (isGuest) return "List (Guest Mode)";
-    return "List";
-  }, [mode, isGuest]);
+    // guest listから探す（まずはこれだけで成立させる）
+    const lists = loadGuestLists();
+    const found = lists.find((l) => l.id === id) ?? null;
+    setItem(found);
+    setNotFound(!found);
 
-  const load = async () => {
-    if (!id || typeof id !== "string") return;
-
-    setMode("guest");
-    setEmail("");
-
-    const guestLists = loadGuestLists();
-    const foundGuest = guestLists.find((x) => x.id === id);
-
-    if (foundGuest) {
-      setItem(foundGuest);
-      setTitleDraft(foundGuest.title);
-      setNotFound(false);
-    }
-
-    // restore draft
+    // draft/checklist復元
     setFreeText(loadDraft(id));
 
-    // restore checklist/prompt
     const saved = loadChecklist(id);
-    if (saved) {
+    if (saved?.buckets) {
       setBuckets(saved.buckets);
-      setPrompt(saved.prompt);
+      setPrompt(saved.prompt ?? "");
     } else {
       setBuckets(null);
       setPrompt("");
     }
-
-    // if logged in, overwrite item from supabase (optional)
-    try {
-      const { data } = await supabase.auth.getSession();
-      const user = data.session?.user;
-
-      if (!user) {
-        if (!foundGuest) setNotFound(true);
-        return;
-      }
-
-      setMode("authed");
-      setEmail(user.email ?? "");
-
-      const { data: row, error } = await supabase
-        .from("lists")
-        .select("id,title,created_at")
-        .eq("id", id)
-        .single();
-
-      if (error || !row) {
-        if (!foundGuest) setNotFound(true);
-        return;
-      }
-
-      setItem(row as ListRow);
-      setTitleDraft((row as any).title ?? "");
-      setNotFound(false);
-    } catch {
-      if (!foundGuest) setNotFound(true);
-    }
-  };
-
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  const saveTitle = async () => {
-    if (!item || !id) return;
+  const headerText = item ? `List: ${item.title}` : "List";
 
-    const nextTitle = titleDraft.trim();
-    if (!nextTitle) {
-      setTitleError("タイトルが空はダメ");
+  const saveTitle = () => {
+    if (!item || !id) return;
+    const t = titleDraft.trim();
+    if (!t) {
+      setTitleError("タイトルが空だよ");
       return;
     }
-
-    updateGuestListTitle(id, nextTitle);
-    setItem({ ...item, title: nextTitle });
-    setIsEditingTitle(false);
     setTitleError("");
-
-    if (isAuthed) {
-      try {
-        const { error } = await supabase.from("lists").update({ title: nextTitle }).eq("id", id);
-        if (error) setTitleError(`DB更新に失敗（見た目は更新済み）：${error.message}`);
-      } catch (e: any) {
-        setTitleError(`DB更新に失敗（見た目は更新済み）：${e?.message ?? "unknown"}`);
-      }
-    }
-  };
-
-  const ensureBuckets = () => {
-    if (!id) return;
-    if (!buckets) {
-      const base = baseBuckets();
-      setBuckets(base);
-      saveChecklist(id, base, prompt);
-    }
+    setItem({ ...item, title: t });
+    updateGuestListTitle(id, t);
+    setIsEditingTitle(false);
   };
 
   const createEmptyChecklist = () => {
     if (!id) return;
-    const base = buckets ?? baseBuckets();
-    setBuckets(base);
-    saveChecklist(id, base, prompt);
+    const next = baseBuckets();
+    setBuckets(next);
+    saveChecklist(id, next, prompt ?? "");
   };
 
   const categorizeMerge = async () => {
-    if (!item || !id) return;
-
+    if (!id) return;
     setCatError("");
     setCatLoading(true);
 
     try {
       const current = buckets ?? baseBuckets();
-
       const res = await fetch("/api/categorize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          goal: item.title,
-          draftText: freeText,
-          existingBuckets: current,
+          text: freeText ?? "",
+          buckets: current,
         }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error ?? "API error");
 
-      const merged: Bucket[] = data?.buckets ?? null;
-      if (!merged || !Array.isArray(merged)) throw new Error("Invalid response");
+      const merged = normalizeBuckets(data?.buckets);
+      if (!merged) throw new Error("Invalid response");
 
       setBuckets(merged);
-      saveChecklist(id, merged, prompt);
+      saveChecklist(id, merged, prompt ?? "");
     } catch (e: any) {
       setCatError(e?.message ?? "Failed");
     } finally {
@@ -284,49 +233,36 @@ export default function ListDetailPage() {
     }
   };
 
-  const toggleDone = (bucketKey: BucketKey, itemId: string) => {
-    if (!buckets || !id) return;
-
+  const toggleDone = (bucketKey: string, itemId: string) => {
+    if (!id || !buckets) return;
     const next = buckets.map((b) =>
       b.key !== bucketKey
         ? b
-        : { ...b, items: b.items.map((it) => (it.id === itemId ? { ...it, done: !it.done } : it)) }
+        : { ...b, items: (b.items ?? []).map((it) => (it.id === itemId ? { ...it, done: !it.done } : it)) }
     );
-
     setBuckets(next);
-    saveChecklist(id, next, prompt);
+    saveChecklist(id, next, prompt ?? "");
   };
 
-  const deleteItem = (bucketKey: BucketKey, itemId: string) => {
-    if (!buckets || !id) return;
-
-    const next = buckets.map((b) =>
-      b.key !== bucketKey ? b : { ...b, items: b.items.filter((it) => it.id !== itemId) }
-    );
-
+  const deleteItem = (bucketKey: string, itemId: string) => {
+    if (!id || !buckets) return;
+    const next = buckets.map((b) => (b.key !== bucketKey ? b : { ...b, items: (b.items ?? []).filter((it) => it.id !== itemId) }));
     setBuckets(next);
-    saveChecklist(id, next, prompt);
+    saveChecklist(id, next, prompt ?? "");
   };
 
-  const addItem = (bucketKey: BucketKey) => {
+  const addItem = (bucketKey: string) => {
     if (!id) return;
-    ensureBuckets();
-
-    const current = buckets ?? baseBuckets();
-    const text = (addText[bucketKey] ?? "").trim();
+    const text = String(addText[bucketKey] ?? "").trim();
     if (!text) return;
 
-    const newItem: ChecklistItem = {
-      id: makeId(),
-      title: text,
-      estimate_min: 5,
-      done: false,
-    };
+    const current = buckets ?? baseBuckets();
+    const newItem: ChecklistItem = { id: uid(), title: text, estimate_min: 5, done: false };
 
-    const next = current.map((b) => (b.key !== bucketKey ? b : { ...b, items: [...b.items, newItem] }));
+    const next = current.map((b) => (b.key !== bucketKey ? b : { ...b, items: [...(b.items ?? []), newItem] }));
     setBuckets(next);
     setAddText((prev) => ({ ...prev, [bucketKey]: "" }));
-    saveChecklist(id, next, prompt);
+    saveChecklist(id, next, prompt ?? "");
   };
 
   const generatePrompt = async (): Promise<string | null> => {
@@ -340,10 +276,13 @@ export default function ListDetailPage() {
       const res = await fetch("/api/prompt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ goal: item.title, buckets }),
+        body: JSON.stringify({
+          title: item.title,
+          buckets,
+        }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error ?? "API error");
 
       const p = String(data?.prompt ?? "");
@@ -358,45 +297,49 @@ export default function ListDetailPage() {
     }
   };
 
-  const formatChecklistText = () => {
+  // ===== Markdown copy =====
+  const formatChecklistMarkdown = () => {
     if (!item) return "";
-    const header = `【ToDo】${item.title}\n\n`;
+    const header = `## Checklist\n**ToDo:** ${item.title}\n\n`;
+    if (!buckets || buckets.length === 0) return header + "_(No checklist yet)_\n";
+
     const body =
-      buckets && buckets.length
-        ? buckets
-            .map((b) => {
-              const lines = (b.items ?? []).map((it) => {
-                const mark = it.done ? "☑" : "☐";
-                return `${mark} ${it.title} (${it.estimate_min}m)`;
-              });
-              return `【${b.label}】\n${lines.join("\n")}`;
-            })
-            .join("\n\n") + "\n"
-        : "(チェックリストがまだない)\n";
+      buckets
+        .map((b) => {
+          const head = b.label ? `### ${b.label}\n` : "";
+          const lines = (b.items ?? []).map((it) => {
+            const mark = it.done ? "x" : " ";
+            const est = typeof it.estimate_min === "number" ? ` (${it.estimate_min}m)` : "";
+            return `- [${mark}] ${it.title}${est}`;
+          });
+          return head + (lines.length ? lines.join("\n") : "- [ ] (empty)");
+        })
+        .join("\n\n") + "\n";
+
     return header + body;
   };
 
+  const formatPromptMarkdown = (p: string) => `## Prompt\n${p}\n`;
+
   const copyChecklistOnly = async () => {
-    const text = formatChecklistText();
-    if (!text) return;
-    await navigator.clipboard.writeText(text);
-    alert("チェックリストをコピーした！");
+    const md = formatChecklistMarkdown();
+    if (!md) return;
+    await navigator.clipboard.writeText(md);
+    alert("Copied checklist (Markdown)");
   };
 
   const copyPromptOnly = async () => {
     if (!prompt) return;
-    await navigator.clipboard.writeText(prompt);
-    alert("プロンプトをコピーした！");
+    await navigator.clipboard.writeText(formatPromptMarkdown(prompt));
+    alert("Copied prompt (Markdown)");
   };
 
   const copyChecklistAndPrompt = async () => {
     if (!item) return;
-    if (!buckets || buckets.length === 0) return;
 
-    let p = prompt;
-
+    let p = prompt ?? "";
     if (!p) {
-      const ok = confirm("プロンプトが未発行。いま発行して一緒にコピーする？");
+      const ok = confirm("No prompt yet. Generate it now and copy together?");
       if (!ok) {
         await copyChecklistOnly();
         return;
@@ -405,29 +348,20 @@ export default function ListDetailPage() {
       p = generated ?? "";
     }
 
-    const checklistText = formatChecklistText();
-    const promptBlock = p ? `\n【自走用プロンプト】\n${p}\n` : `\n【自走用プロンプト】\n(発行に失敗)\n`;
-
-    await navigator.clipboard.writeText(checklistText + promptBlock);
-    alert("チェックリスト＋プロンプトをコピーした！");
+    const md = `${formatPromptMarkdown(p)}\n---\n\n${formatChecklistMarkdown()}`;
+    await navigator.clipboard.writeText(md);
+    alert("Copied checklist + prompt (Markdown)");
   };
 
   return (
     <main style={{ padding: 24, maxWidth: 860, margin: "0 auto" }}>
-      <button
-        style={{ border: "1px solid #ddd", borderRadius: 8, padding: "8px 12px" }}
-        onClick={() => router.push("/lists")}
-      >
+      <button style={{ border: "1px solid #ddd", borderRadius: 8, padding: "8px 12px" }} onClick={() => router.push("/lists")}>
         ← Back
       </button>
 
       <h1 style={{ marginTop: 16, fontSize: 28, fontWeight: 700 }}>{headerText}</h1>
 
-      {isAuthed ? (
-        <p style={{ marginTop: 8 }}>Logged in as: {email}</p>
-      ) : (
-        <p style={{ marginTop: 8, opacity: 0.8 }}>ゲストモード：この端末のブラウザ内に保存されるよ</p>
-      )}
+      <p style={{ marginTop: 8, opacity: 0.8 }}>ゲストモード：この端末のブラウザ内に保存されるよ</p>
 
       {item && (
         <section style={{ marginTop: 16, padding: 16, border: "1px solid #eee", borderRadius: 12 }}>
@@ -472,15 +406,12 @@ export default function ListDetailPage() {
           </div>
 
           {titleError && <p style={{ marginTop: 8, color: "crimson" }}>{titleError}</p>}
-
           <p style={{ marginTop: 8, opacity: 0.7, fontSize: 12 }}>id: {item.id}</p>
 
           {/* Step 1: Free draft */}
           <section style={{ marginTop: 14, padding: 12, border: "1px solid #eee", borderRadius: 12 }}>
             <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>まず自由に書く（下書き）</h3>
-            <p style={{ marginTop: 6, opacity: 0.75, fontSize: 12 }}>
-              思いついた順でOK。箇条書き推奨。AIで分類しても消えない。
-            </p>
+            <p style={{ marginTop: 6, opacity: 0.75, fontSize: 12 }}>思いついた順でOK。箇条書き推奨。AIで分類しても消えない。</p>
 
             <textarea
               value={freeText}
@@ -501,18 +432,11 @@ export default function ListDetailPage() {
             />
 
             <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button
-                style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid #ddd" }}
-                onClick={categorizeMerge}
-                disabled={catLoading}
-              >
+              <button style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid #ddd" }} onClick={categorizeMerge} disabled={catLoading}>
                 {catLoading ? "分類中…" : "AIで5カテゴリに分ける（取り込み）"}
               </button>
 
-              <button
-                style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid #ddd" }}
-                onClick={createEmptyChecklist}
-              >
+              <button style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid #ddd" }} onClick={createEmptyChecklist}>
                 先に空のチェックリストを作る
               </button>
             </div>
@@ -561,11 +485,11 @@ export default function ListDetailPage() {
                       </button>
                     </div>
 
-                    {b.items.length === 0 ? (
+                    {(b.items ?? []).length === 0 ? (
                       <p style={{ marginTop: 10, opacity: 0.7 }}>（まだ何もない）</p>
                     ) : (
                       <ul style={{ marginTop: 10, paddingLeft: 0, listStyle: "none" }}>
-                        {b.items.map((it) => (
+                        {(b.items ?? []).map((it) => (
                           <li
                             key={it.id}
                             style={{
@@ -583,16 +507,11 @@ export default function ListDetailPage() {
                               <input type="checkbox" checked={it.done} onChange={() => toggleDone(b.key, it.id)} />
                               <span style={{ textDecoration: it.done ? "line-through" : "none" }}>
                                 {it.title}
-                                <span style={{ marginLeft: 8, opacity: 0.6, fontSize: 12 }}>
-                                  ({it.estimate_min}m)
-                                </span>
+                                <span style={{ marginLeft: 8, opacity: 0.6, fontSize: 12 }}>({it.estimate_min}m)</span>
                               </span>
                             </label>
 
-                            <button
-                              style={{ border: "1px solid #ddd", borderRadius: 10, padding: "6px 10px" }}
-                              onClick={() => deleteItem(b.key, it.id)}
-                            >
+                            <button style={{ border: "1px solid #ddd", borderRadius: 10, padding: "6px 10px" }} onClick={() => deleteItem(b.key, it.id)}>
                               削除
                             </button>
                           </li>
@@ -613,36 +532,20 @@ export default function ListDetailPage() {
             </p>
 
             <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button
-                style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid #ddd" }}
-                onClick={copyChecklistOnly}
-                disabled={!buckets || buckets.length === 0}
-              >
-                チェックリストをコピー
+              <button style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid #ddd" }} onClick={copyChecklistOnly} disabled={!buckets || buckets.length === 0}>
+                チェックリストをコピー（Markdown）
               </button>
 
-              <button
-                style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid #ddd" }}
-                onClick={generatePrompt}
-                disabled={promptLoading || !buckets || buckets.length === 0}
-              >
+              <button style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid #ddd" }} onClick={generatePrompt} disabled={promptLoading || !buckets || buckets.length === 0}>
                 {promptLoading ? "作成中…" : "プロンプト発行（最終）"}
               </button>
 
-              <button
-                style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid #ddd" }}
-                onClick={copyPromptOnly}
-                disabled={!prompt}
-              >
-                プロンプトだけコピー
+              <button style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid #ddd" }} onClick={copyPromptOnly} disabled={!prompt}>
+                プロンプトだけコピー（Markdown）
               </button>
 
-              <button
-                style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid #ddd" }}
-                onClick={copyChecklistAndPrompt}
-                disabled={!buckets || buckets.length === 0}
-              >
-                チェックリスト＋プロンプトをコピー
+              <button style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid #ddd" }} onClick={copyChecklistAndPrompt} disabled={!buckets || buckets.length === 0}>
+                チェックリスト＋プロンプトをコピー（Markdown）
               </button>
             </div>
 
@@ -668,7 +571,7 @@ export default function ListDetailPage() {
 
       {!item && notFound && (
         <p style={{ marginTop: 16, color: "crimson" }}>
-          このリストは見つからなかった（ゲスト保存にも、ログインDBにも無いみたい）。
+          このリストは見つからなかった（ゲスト保存にも無いみたい）。
         </p>
       )}
 
