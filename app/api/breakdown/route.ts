@@ -6,8 +6,6 @@ const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!,
 });
 
-type Mode = "first_step" | "research" | "budget" | "setup";
-
 export async function POST(req: Request) {
   try {
     if (!process.env.OPENAI_API_KEY) {
@@ -16,38 +14,60 @@ export async function POST(req: Request) {
 
     const body = await req.json();
     const goal: string = body.goal ?? "";
-    const mode: Mode = body.mode ?? "first_step";
 
     if (!goal.trim()) {
       return Response.json({ error: "goal is required" }, { status: 400 });
     }
 
-    const modeHint: Record<Mode, string> = {
-      first_step: "最初の一歩（5〜10分でできる行動）を中心に分解する",
-      research: "情報収集（調べる/比較する/問い合わせる）を中心に分解する",
-      budget: "予算（概算/見積り/支払い/優先順位）を中心に分解する",
-      setup: "段取り（準備物/手配/スケジュール/依頼）を中心に分解する",
-    };
-
     const system = `
-あなたは「大きな目標を、いま実行できるTodoに分解する」アシスタント。
-必ずJSONのみで返す。余計な文章は禁止。
-各Todoは短く、動詞から始める（例：比較する、予約する、問い合わせる）。
+あなたは「迷って動けない人を動かす」ToDo分解コーチ。
+ユーザーが“どう決めていいか分からない”状態でも進められる設計にする。
+
+出力は必ずJSONのみ。余計な文章は禁止。
+
+必須：
+- どのToDoでも最初に think_first（考えること）から始める
+- 仮案を最低2つ（A/B）出す。進め方の性格が違う案にする
+- 最後に copypaste_prompt（自走用コピペプロンプト）を必ず付ける
+- 各案の最初のタスクは5分でできる行動にする
+- estimate_min は 5 / 10 / 15 / 30 / 60 のどれか
+- tag は "first_step" | "research" | "budget" | "setup"
 `;
 
     const user = `
-目標: ${goal}
-分解の方針: ${modeHint[mode]}
+ToDo: ${goal}
 
-JSON形式で返して:
+次のJSON形式で出力して：
 {
-  "title": "（リストの短いタイトル）",
-  "todos": [
-    {"title":"...", "tag":"first_step|research|budget|setup", "estimate_min": 5}
-  ]
+  "title": "要約タイトル（短く）",
+  "think_first": [
+    "目的（なぜやる？）を1行で",
+    "期限（いつまで？）",
+    "完了の定義（どうなったら終わり？）",
+    "制約（時間/お金/体力/場所）",
+    "最初の5分アクション"
+  ],
+  "draft_plans": [
+    {
+      "title": "案A（例：最短で終わらせる）",
+      "todos": [
+        { "title": "…", "estimate_min": 5, "tag": "first_step" }
+      ]
+    },
+    {
+      "title": "案B（例：迷う人向け・判断を減らす）",
+      "todos": [
+        { "title": "…", "estimate_min": 5, "tag": "first_step" }
+      ]
+    }
+  ],
+  "copypaste_prompt": "ユーザーが自分のAIに貼って続きを進めるためのプロンプト本文（日本語）。［］の穴埋めを含める。"
 }
-todosは8〜15個。estimate_minはだいたいの分数（5〜90）。
-tagは上の4種類のみ。
+
+制約：
+- think_first は 5〜7個
+- 各案のtodosは 8〜15個
+- copypaste_prompt は長くてOK。箇条書き指示OK。
 `;
 
     const resp = await client.responses.create({
