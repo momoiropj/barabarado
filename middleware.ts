@@ -20,7 +20,7 @@ export function middleware(req: NextRequest) {
 
   const url = req.nextUrl.clone();
   url.pathname = "/gate";
-  url.searchParams.set("next", pathname);
+url.searchParams.set("next", pathname === "/login" ? "/lists" : pathname);
   return NextResponse.redirect(url);
 }
 

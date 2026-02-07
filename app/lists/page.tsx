@@ -61,18 +61,34 @@ export default function ListsPage() {
     return user;
   };
 
-  const loadLists = async () => {
-    const user = await detectMode();
+ const loadLists = async () => {
+  // まずゲストとして即表示（ここがポイント）
+  setMode("guest");
+  setEmail("");
+  setLists(loadGuestLists());
+
+  // その後に「ログインしてたら」上書きする（失敗してもOK）
+  try {
+    const { data } = await supabase.auth.getSession(); // getUserより軽い
+    const user = data.session?.user;
     if (!user) return;
 
-    const { data, error } = await supabase
+    setMode("authed");
+    setEmail(user.email ?? "");
+
+    const { data: rows, error } = await supabase
       .from("lists")
       .select("id,title,created_at")
       .order("created_at", { ascending: false });
 
     if (error) return alert(error.message);
-    setLists((data ?? []) as ListRow[]);
-  };
+    setLists((rows ?? []) as ListRow[]);
+  } catch {
+    // 何かあってもゲスト表示はできてるので黙ってOK
+    return;
+  }
+};
+
 
   useEffect(() => {
     loadLists();
