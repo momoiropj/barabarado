@@ -151,6 +151,37 @@ export default function ListsPage() {
   return (
     <main style={{ padding: 24, maxWidth: 720, margin: "0 auto" }}>
       <h1 style={{ fontSize: 28, fontWeight: 700 }}>{headerText}</h1>
+
+{/* ▼ ゲストユーザー向けの注意文 ▼ */}
+<section
+  style={{
+    marginTop: 12,
+    padding: 12,
+    border: "1px solid #eee",
+    borderRadius: 12,
+    background: "#fafafa",
+  }}
+>
+  <h2 style={{ fontSize: 14, fontWeight: 800, margin: 0 }}>テスト利用の注意（ゲストモード）</h2>
+  <ul style={{ marginTop: 10, paddingLeft: 18, lineHeight: 1.8, fontSize: 13, opacity: 0.9 }}>
+    <li>
+      入力した内容は、この端末のブラウザ内に保存されるよ（ログインなし）。<b>別の端末・別ブラウザでは見えない</b>。
+    </li>
+    <li>
+      ブラウザのデータ削除などで内容が消えることがあるので、大事なものは<b>「コピー」</b>でメモ帳やNotionに保存してね。
+    </li>
+    <li>共有PCでの利用はおすすめしない（他の人に見られる可能性あり）。</li>
+    <li>
+      AI分解／プロンプト発行を使うと入力内容がAIに送信されるよ。<b>住所・電話・口座・健康情報・社外秘は入れないで</b>。
+      固有名詞は「A社」「Bさん」みたいに伏せ字でOK。
+    </li>
+    <li>このパスコードはテストユーザー限定。第三者への共有はしないでね。</li>
+  </ul>
+</section>
+{/* ▲ ここまで ▲ */}
+
+
+
 <button
   style={{ marginTop: 12, border: "1px solid #ddd", borderRadius: 10, padding: "8px 12px" }}
   onClick={() => router.push("/help")}
@@ -180,7 +211,7 @@ export default function ListsPage() {
           <div style={{ marginTop: 16, display: "flex", gap: 8, flexWrap: "wrap" }}>
             <input
               style={{ flex: 1, minWidth: 240, padding: 10, border: "1px solid #ddd", borderRadius: 8 }}
-              placeholder="New list title..."
+              placeholder="まずはタイトルを入れてね"
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
               onKeyDown={(e) => {
