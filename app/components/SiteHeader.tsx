@@ -1,95 +1,96 @@
-"use client";
-
-import React from "react";
 import Link from "next/link";
 import styles from "./SiteHeader.module.css";
 
-type Pill = { text: string };
-type NavLink = { href: string; label: string };
+export type Pill = { text: string };
+export type NavLink = { href: string; label: string };
 
 export type SiteHeaderProps = {
-  /** 省略OK（省略時は BarabaraDo） */
   title?: string;
-  /** 省略OK */
   subtitle?: string;
-
-  /** 省略OK */
   pills?: Pill[];
-
-  /** 省略OK（省略時は Lists / Help / Concept を出す） */
   navLinks?: NavLink[];
 
-  /** 省略OK（指定したら「戻る」リンクを左に出す） */
+  // Lists/[id] みたいに「戻る」を出したいとき用（任意）
   backHref?: string;
-  /** 省略OK（backHrefがある時だけ使われる） */
   backLabel?: string;
-
-  /** 右側に何かボタン置きたい時用 */
-  rightSlot?: React.ReactNode;
-
-  /** さらに薄くしたい/余白調整したい時のフラグ（今は未使用でもOK） */
-  compact?: boolean;
 };
 
-const DEFAULT_NAV: NavLink[] = [
-  { href: "/lists", label: "Lists" },
-  { href: "/help", label: "Help" },
-  { href: "/concept", label: "Concept" },
+const DEFAULT_PILLS: Pill[] = [
+  { text: "🧸 ゲストモード" },
+  { text: "🔒 この端末のブラウザに保存します" },
 ];
 
+const DEFAULT_NAV: NavLink[] = [
+  { href: "/concept", label: "Concept" },
+  { href: "/help", label: "Help" },
+];
+
+function normalizePills(pills?: Pill[]): Pill[] {
+  // 何も渡されなければデフォルト
+  if (!pills || pills.length === 0) return DEFAULT_PILLS;
+
+  // 既存の文言が残ってても自動で置換（“直し忘れ”耐性）
+  return pills.map((p) => {
+    if (p.text === "🧸 BarabaraDo（ゲスト）") return { text: "🧸 ゲストモード" };
+    if (p.text === "🔒 データはこの端末のブラウザに保存") return { text: "🔒 この端末のブラウザに保存します" };
+    return p;
+  });
+}
+
+function normalizeNavLinks(navLinks?: NavLink[]): NavLink[] {
+  const list = (navLinks && navLinks.length > 0 ? navLinks : DEFAULT_NAV).slice();
+
+  // “Concept と Help の位置入れ替え”を強制（渡された配列が逆でも直す）
+  const rank = (href: string) => {
+    if (href === "/concept") return 0;
+    if (href === "/help") return 1;
+    return 99;
+  };
+
+  return list.sort((a, b) => rank(a.href) - rank(b.href));
+}
+
 export default function SiteHeader(props: SiteHeaderProps) {
-  const {
-    title = "BarabaraDo",
-    subtitle,
-    pills = [{ text: "🧸 BarabaraDo（ゲスト）" }, { text: "🧠 分解 → 編集 → 発行" }],
-    navLinks = DEFAULT_NAV,
-    backHref,
-    backLabel = "← Back",
-    rightSlot,
-  } = props;
+  const title = props.title ?? "BarabaraDo";
+  const subtitle = props.subtitle ?? "分解 → 編集 → 発行（他AIへバトンパス）";
+  const pills = normalizePills(props.pills);
+  const navLinks = normalizeNavLinks(props.navLinks);
 
   return (
-    <header className={styles.header}>
+    <header className={styles.headerWrap}>
       <div className={styles.inner}>
-        {/* 上段：左（戻る/タイトル） 右（ナビ/スロット） */}
         <div className={styles.topRow}>
           <div className={styles.left}>
-            {backHref ? (
-              <Link href={backHref} className={styles.backLink}>
-                {backLabel}
+            {props.backHref ? (
+              <Link className={styles.backLink} href={props.backHref}>
+                {props.backLabel ?? "← Back"}
               </Link>
             ) : (
-              <span className={styles.backPlaceholder} />
+              <span className={styles.brandPill}>🧸 BarabaraDo</span>
             )}
-
-            <div className={styles.brandBlock}>
-              <div className={styles.title}>{title}</div>
-              {subtitle ? <div className={styles.subtitle}>{subtitle}</div> : null}
-            </div>
           </div>
 
-          <div className={styles.right}>
-            <nav className={styles.nav}>
-              {navLinks.map((l) => (
-                <Link key={l.href} href={l.href} className={styles.navLink}>
-                  {l.label}
-                </Link>
-              ))}
-            </nav>
-            {rightSlot ? <div className={styles.rightSlot}>{rightSlot}</div> : null}
-          </div>
+          <nav className={styles.nav}>
+            {navLinks.map((l) => (
+              <Link key={l.href} className={styles.navLink} href={l.href}>
+                {l.label}
+              </Link>
+            ))}
+          </nav>
         </div>
 
-        {/* 下段：ピル */}
-        {pills && pills.length > 0 ? (
-          <div className={styles.pills}>
-            {pills.map((p, i) => (
-              <span key={`${p.text}_${i}`} className={styles.pill}>
-                {p.text}
-              </span>
-            ))}
-          </div>
-        ) : null}
+        <div className={styles.mid}>
+          <h1 className={styles.title}>{title}</h1>
+          <p className={styles.subtitle}>{subtitle}</p>
+        </div>
+
+        <div className={styles.pills}>
+          {pills.map((p, i) => (
+            <span key={`${p.text}_${i}`} className={styles.pill}>
+              {p.text}
+            </span>
+          ))}
+        </div>
       </div>
     </header>
   );
