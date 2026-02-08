@@ -1,45 +1,53 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import styles from "./SiteHeader.module.css";
 
+type NavLink = { href: string; label: string; emoji?: string };
 
-type Pill = { text: string };
-type NavLink = { href: string; label: string };
+const NAV: NavLink[] = [
+  { href: "/lists", label: "Lists", emoji: "🧸" },
+  { href: "/help", label: "Help", emoji: "🛟" },
+  { href: "/concept", label: "Concept", emoji: "🧠" },
+];
 
-type Props = {
-  title: string;
-  subtitle?: string;
-  pills?: Pill[];
-  navLinks?: NavLink[];
-};
+export default function SiteHeader() {
+  const pathname = usePathname();
 
-export default function SiteHeader({ title, subtitle, pills = [], navLinks = [] }: Props) {
+  const isActive = (href: string) => {
+    if (!pathname) return false;
+    if (href === "/lists") return pathname === "/lists" || pathname.startsWith("/lists/");
+    return pathname === href;
+  };
+
   return (
     <header className={styles.header}>
-      {(pills?.length ?? 0) > 0 && (
-        <div className={styles.pills}>
-          {pills.map((p, i) => (
-            <span key={`${p.text}-${i}`} className={styles.pill}>
-              {p.text}
-            </span>
-          ))}
-        </div>
-      )}
+      <div className={styles.inner}>
+        <Link href="/lists" className={styles.brand} aria-label="BarabaraDo home">
+          <span className={styles.logo}>🧸</span>
+          <span className={styles.brandText}>BarabaraDo</span>
+          <span className={styles.brandTag}>ゲスト</span>
+        </Link>
 
-      <h1 className={styles.title}>{title}</h1>
-
-      {subtitle && <p className={styles.subtitle}>{subtitle}</p>}
-
-      {(navLinks?.length ?? 0) > 0 && (
-        <nav className={styles.nav}>
-          {navLinks.map((l) => (
-            <Link key={l.href} className={styles.navBtn} href={l.href}>
-              {l.label}
+        <nav className={styles.nav} aria-label="Main navigation">
+          {NAV.map((n) => (
+            <Link
+              key={n.href}
+              href={n.href}
+              className={`${styles.navLink} ${isActive(n.href) ? styles.active : ""}`}
+              aria-current={isActive(n.href) ? "page" : undefined}
+            >
+              <span className={styles.navEmoji}>{n.emoji ?? ""}</span>
+              <span>{n.label}</span>
             </Link>
           ))}
         </nav>
-      )}
+
+        <div className={styles.right}>
+          <span className={styles.pill}>分解 → 編集 → 発行</span>
+        </div>
+      </div>
     </header>
   );
 }
