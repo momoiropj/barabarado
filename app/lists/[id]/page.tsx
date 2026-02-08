@@ -58,7 +58,7 @@ function baseBuckets(): Bucket[] {
 
 function normalizeBuckets(input: unknown): Bucket[] | null {
   if (!Array.isArray(input)) return null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   return input.map((b: any) => ({
     key: String(b?.key ?? uid()),
     label: String(b?.label ?? ""),
@@ -76,14 +76,8 @@ function normalizeBuckets(input: unknown): Bucket[] | null {
 function loadGuestLists(): ListRow[] {
   const parsed = safeParseJSON<unknown>(localStorage.getItem(GUEST_LISTS_KEY));
   if (!Array.isArray(parsed)) return [];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return parsed
-    .map((x: any) => ({
-      id: String(x?.id ?? ""),
-      title: String(x?.title ?? ""),
-      createdAt: String(x?.createdAt ?? ""),
-      updatedAt: String(x?.updatedAt ?? ""),
-    }))
+    .map((x: any) => ({ id: String(x?.id ?? ""), title: String(x?.title ?? "") }))
     .filter((x) => x.id && x.title);
 }
 
@@ -95,13 +89,14 @@ function saveGuestLists(lists: ListRow[]) {
 
 function updateGuestListTitle(listId: string, newTitle: string) {
   const lists = loadGuestLists();
-  const next = lists.map((l) => (l.id === listId ? { ...l, title: newTitle, updatedAt: new Date().toISOString() } : l));
+  const next = lists.map((l) => (l.id === listId ? { ...l, title: newTitle } : l));
   saveGuestLists(next);
 }
 
 function loadChecklist(listId: string): { buckets: Bucket[] | null; prompt: string } | null {
   const parsed = safeParseJSON<any>(localStorage.getItem(checklistKey(listId)));
   if (!parsed) return null;
+
   const buckets = normalizeBuckets(parsed?.buckets);
   const prompt = String(parsed?.prompt ?? "");
   return { buckets, prompt };
@@ -135,69 +130,56 @@ function saveDraft(listId: string, text: string) {
   } catch {}
 }
 
-function formatChecklistMarkdown(todoTitle: string, buckets: Bucket[] | null): string {
-  const header = `## Checklist\n**ToDo:** ${todoTitle}\n\n`;
-  if (!buckets || buckets.length === 0) return header + "_(No checklist yet)_\n";
-
-  const body =
-    buckets
-      .map((b) => {
-        const head = b.label ? `### ${b.label}\n` : "";
-        const lines = (b.items ?? []).map((it) => {
-          const mark = it.done ? "x" : " ";
-          const est = typeof it.estimate_min === "number" ? ` (${it.estimate_min}m)` : "";
-          return `- [${mark}] ${it.title}${est}`;
-        });
-        return head + (lines.length ? lines.join("\n") : "- [ ] (empty)");
-      })
-      .join("\n\n") + "\n";
-
-  return header + body;
-}
-
 function buildBatonPassPromptMarkdown(args: {
-  todoTitle: string;
-  contextText: string;
-  basePrompt: string;
-  checklistMarkdown?: string;
-}): string {
-  const { todoTitle, contextText, basePrompt, checklistMarkdown } = args;
+  todo: string;
+  context?: string;
+  checklistMarkdown?: string; // ある場合だけ付与
+}) {
+  const todo = (args.todo ?? "").trim() || "(未設定)";
+  const context = (args.context ?? "").trim();
 
-  const ctx = (contextText ?? "").trim();
-  const hasChecklist = Boolean(checklistMarkdown && checklistMarkdown.trim().length > 0);
+  const checklistBlock = args.checklistMarkdown?.trim()
+    ? `
 
-  return [
-    `# BarabaraDo → あなた（AI）へのバトンパス`,
-    ``,
-    `あなたは「タスク分解と実行支援」が得意なAIコーチ。これからユーザーを伴走して、行動できる状態にする。`,
-    ``,
-    `## まず最初に言うセリフ（固定）`,
-    `次の一言から必ず始めて：`,
-    `> OK，BarabaraDoからバトンパスされたよ！ここからは私がサポートするよ。`,
-    ``,
-    `## 進め方（大事ルール）`,
-    `- いきなり説教しない。短く、具体、即実行。`,
-    `- 質問は最大2つ。ただし質問の前に、あなたの仮案（次の一手）を必ず出す。`,
-    `- ユーザーの状況に合わせて、チェックリストを「より現実的」に書き換えていい（むしろやって）。`,
-    `- 最後に「今日やる最初の5分」を提案して、ユーザーに選ばせる。`,
-    ``,
-    `## ユーザーのToDo`,
-    `- ToDo: ${todoTitle}`,
-    ctx ? `- 補足: ${ctx}` : `- 補足: （なし）`,
-    ``,
-    `## BarabaraDoのたたき台（この案を改善してOK）`,
-    basePrompt?.trim() ? basePrompt.trim() : "_(BarabaraDoの案が空でした。あなたがゼロから組み立ててOK)_",
-    ``,
-    hasChecklist ? `## 以下は現時点でチェックリストになります。` : `## チェックリスト`,
-    hasChecklist ? checklistMarkdown!.trim() : `_(チェックリスト未生成)_`,
-    ``,
-    `## あなた（AI）の出力フォーマット（おすすめ）`,
-    `1) 最初の一言（上の固定セリフ）`,
-    `2) 状況を掴む短い確認（最大2問）`,
-    `3) いまからやる「最初の5分」提案（3択）`,
-    `4) カスタム後のチェックリスト（Markdownのチェックボックスで）`,
-    ``,
-  ].join("\n");
+---
+
+## チェックリスト（BarabaraDoからのバトン）
+以下は現時点でチェックリストになります。
+
+${args.checklistMarkdown.trim()}
+`
+    : "";
+
+  return `
+## Prompt
+あなたはユーザー専属の「実行支援AI」。BarabaraDoで作った下書き・分類・チェックリストを引き継いで、ユーザーが“次の5分”を迷わず始められるように伴走する。
+
+### 最初の一言（必須）
+最初の返答の冒頭は、必ずこの一文から始めて：
+> OK，BarabaraDoからバトンパスされたよ！ここからは私がサポートするよ。
+
+## 入力（BarabaraDoからのバトン）
+- ToDo: ${todo}
+- Context: ${context ? context : "(なし)"}
+
+## やってほしいこと
+1) まず「今日やる最初の5分」を1つだけ提案（行動が具体で、5分で確実に終わるもの）
+2) ToDoの完了条件をユーザー向けに言い換え（YES/NOで判定できる形）
+3) 優先順位（1〜7くらい）を提案し、理由を1行ずつ
+4) 迷いが出た時にユーザーへ投げる質問を3つ（答えやすい形）
+5) ユーザーが次にコピペして返せる「回答フォーマット」を提示（短く）
+
+### 追加ルール
+- 不明点があっても止まらない。仮定する場合は「仮定：〜」と明記。
+- 質問は最大2つまで。ただし、質問の前に必ず仮の提案を出す。
+- 説教・精神論で長引かせない。とにかく次の一歩を具体化。
+
+## 返答フォーマット（この見出しで返して）
+- 【今日やる最初の5分】
+- 【優先順位の提案】
+- 【迷いが出た時に聞くべき質問】
+- 【次にコピペすべき回答フォーマット】
+`.trim() + checklistBlock;
 }
 
 export default function Page() {
@@ -214,7 +196,7 @@ export default function Page() {
   const [item, setItem] = useState<ListRow | null>(null);
   const [notFound, setNotFound] = useState(false);
 
-  // step1 draft
+  // step1
   const [freeText, setFreeText] = useState("");
 
   // checklist
@@ -232,10 +214,9 @@ export default function Page() {
   const [catLoading, setCatLoading] = useState(false);
   const [catError, setCatError] = useState("");
 
-  // prompt (issued)
-  const [prompt, setPrompt] = useState("");
+  // prompt
+  const [issuedPrompt, setIssuedPrompt] = useState("");
   const [promptLoading, setPromptLoading] = useState(false);
-  const [promptError, setPromptError] = useState("");
 
   useEffect(() => {
     if (!id) return;
@@ -250,14 +231,14 @@ export default function Page() {
     const saved = loadChecklist(id);
     if (saved?.buckets) {
       setBuckets(saved.buckets);
-      setPrompt(saved.prompt ?? "");
+      setIssuedPrompt(saved.prompt ?? "");
     } else {
       setBuckets(null);
-      setPrompt("");
+      setIssuedPrompt("");
     }
   }, [id]);
 
-  const headerText = item ? `List: ${item.title}` : "List";
+  const headerText = item ? item.title : "List";
 
   const saveTitle = () => {
     if (!item || !id) return;
@@ -277,7 +258,7 @@ export default function Page() {
     if (!id) return;
     const next = baseBuckets();
     setBuckets(next);
-    saveChecklist(id, next, prompt ?? "");
+    saveChecklist(id, next, issuedPrompt ?? "");
     showToast("空のチェックリスト作った");
   };
 
@@ -305,8 +286,8 @@ export default function Page() {
       if (!merged) throw new Error("Invalid response");
 
       setBuckets(merged);
-      saveChecklist(id, merged, prompt ?? "");
-      showToast("分類した（取り込み）");
+      saveChecklist(id, merged, issuedPrompt ?? "");
+      showToast("AIで取り込んだ");
     } catch (e: any) {
       setCatError(e?.message ?? "Failed");
     } finally {
@@ -317,17 +298,21 @@ export default function Page() {
   const toggleDone = (bucketKey: string, itemId: string) => {
     if (!id || !buckets) return;
     const next = buckets.map((b) =>
-      b.key !== bucketKey ? b : { ...b, items: (b.items ?? []).map((it) => (it.id === itemId ? { ...it, done: !it.done } : it)) }
+      b.key !== bucketKey
+        ? b
+        : { ...b, items: (b.items ?? []).map((it) => (it.id === itemId ? { ...it, done: !it.done } : it)) }
     );
     setBuckets(next);
-    saveChecklist(id, next, prompt ?? "");
+    saveChecklist(id, next, issuedPrompt ?? "");
   };
 
   const deleteItem = (bucketKey: string, itemId: string) => {
     if (!id || !buckets) return;
-    const next = buckets.map((b) => (b.key !== bucketKey ? b : { ...b, items: (b.items ?? []).filter((it) => it.id !== itemId) }));
+    const next = buckets.map((b) =>
+      b.key !== bucketKey ? b : { ...b, items: (b.items ?? []).filter((it) => it.id !== itemId) }
+    );
     setBuckets(next);
-    saveChecklist(id, next, prompt ?? "");
+    saveChecklist(id, next, issuedPrompt ?? "");
   };
 
   const addItem = (bucketKey: string) => {
@@ -341,199 +326,230 @@ export default function Page() {
     const next = current.map((b) => (b.key !== bucketKey ? b : { ...b, items: [...(b.items ?? []), newItem] }));
     setBuckets(next);
     setAddText((prev) => ({ ...prev, [bucketKey]: "" }));
-    saveChecklist(id, next, prompt ?? "");
-    showToast("追加した");
+    saveChecklist(id, next, issuedPrompt ?? "");
   };
 
-  // ✅ ここが「発行ボタン」：サーバーでベース案生成→バトンパス用Markdownに包む
-  const generatePrompt = async (): Promise<string | null> => {
-    if (!item || !id) return null;
+  const formatChecklistMarkdown = () => {
+    if (!item) return "";
+    if (!buckets || buckets.length === 0) return "";
 
-    setPromptError("");
+    const body =
+      buckets
+        .map((b) => {
+          const head = b.label ? `### ${b.label}\n` : "";
+          const lines = (b.items ?? []).map((it) => {
+            const mark = it.done ? "x" : " ";
+            const est = typeof it.estimate_min === "number" ? ` (${it.estimate_min}m)` : "";
+            return `- [${mark}] ${it.title}${est}`;
+          });
+          return head + (lines.length ? lines.join("\n") : "- [ ] (empty)");
+        })
+        .join("\n\n") + "\n";
+
+    return body.trim();
+  };
+
+  const generateIssuedPrompt = () => {
+    if (!item || !id) return;
+    if (!buckets || buckets.length === 0) return;
+
     setPromptLoading(true);
-
     try {
-      const res = await fetch("/api/prompt", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          goal: item.title,
-          title: item.title,
-          buckets: buckets ?? baseBuckets(),
-        }),
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error ?? "API error");
-
-      const basePrompt = String(data?.prompt ?? "");
-
-      const checklistMd = formatChecklistMarkdown(item.title, buckets ?? null);
-      const issued = buildBatonPassPromptMarkdown({
-        todoTitle: item.title,
-        contextText: freeText ?? "",
-        basePrompt,
+      const checklistMd = formatChecklistMarkdown();
+      const p = buildBatonPassPromptMarkdown({
+        todo: item.title,
+        context: freeText,
         checklistMarkdown: checklistMd,
       });
 
-      setPrompt(issued);
-      saveChecklist(id, buckets ?? null, issued);
+      setIssuedPrompt(p);
+      saveChecklist(id, buckets, p);
       showToast("プロンプト発行した");
-      return issued;
-    } catch (e: any) {
-      setPromptError(e?.message ?? "Failed");
-      return null;
     } finally {
       setPromptLoading(false);
     }
   };
 
   const copyText = async (text: string, msg: string) => {
-    if (!text) return;
     await navigator.clipboard.writeText(text);
     showToast(msg);
   };
 
+  const copyPromptOnly = async () => {
+    if (!issuedPrompt) return;
+    await copyText(issuedPrompt, "プロンプトコピーした");
+  };
+
+  const copyChecklistOnly = async () => {
+    const md = formatChecklistMarkdown();
+    if (!md) return;
+    await copyText(md, "チェックリストコピーした");
+  };
+
+  const copyChecklistAndPrompt = async () => {
+    if (!item) return;
+
+    let p = issuedPrompt ?? "";
+    if (!p) {
+      generateIssuedPrompt();
+      p = issuedPrompt ?? "";
+    }
+
+    const checklist = formatChecklistMarkdown();
+    const merged = `${p}\n\n---\n\n## Checklist\n**ToDo:** ${item.title}\n\n${checklist ? checklist : "_(No checklist yet)_"}\n`;
+    await copyText(merged, "チェックリスト＋プロンプトコピーした");
+  };
+
   return (
     <main className={styles.main}>
-      <div className={styles.container}>
-        <SiteHeader
-          title={headerText}
-          subtitle="下書き→分類→編集→プロンプト発行。発行したプロンプトを他AIにコピペして、伴走を続ける。"
-          pills={[{ text: "🧸 BarabaraDo（ゲスト）" }, { text: "🧠 分解 → 編集 → 発行" }]}
-          navLinks={[
-            { href: "/lists", label: "← Lists" },
-            { href: "/help", label: "📘 Help" },
-            { href: "/concept", label: "💡 Concept" },
-          ]}
-        />
+      <SiteHeader
+        title={headerText}
+        subtitle="下書き→分類→編集→プロンプト発行。発行したプロンプトを他AIにコピペして、伴走を続ける。"
+        pills={[{ text: "🧸 ゲスト（端末保存）" }, { text: "🧠 分解 → 編集 → 発行" }]}
+        navLinks={[
+          { href: "/lists", label: "Lists" },
+          { href: "/help", label: "Help" },
+          { href: "/concept", label: "Concept" },
+        ]}
+      />
 
-        <p className={styles.hint}>ゲストモード：この端末のブラウザ内に保存されるよ</p>
+      <div className={styles.container}>
+        {!item && notFound && <p className={styles.error}>このリストは見つからなかった（ゲスト保存にも無いみたい）。</p>}
+        {!item && !notFound && <p className={styles.hint}>読み込み中…</p>}
 
         {item && (
-          <section className={styles.card}>
-            <div className={styles.cardInner}>
-              {/* Title + edit */}
-              <div className={styles.titleRow}>
-                {!isEditingTitle ? (
-                  <>
-                    <h2 className={styles.listTitle}>{item.title}</h2>
-                    <button
-                      className={styles.btn}
-                      onClick={() => {
-                        setTitleError("");
-                        setTitleDraft(item.title);
-                        setIsEditingTitle(true);
-                      }}
-                    >
-                      編集
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <input
-                      value={titleDraft}
-                      onChange={(e) => setTitleDraft(e.target.value)}
-                      className={styles.input}
-                      style={{ flex: 1, minWidth: 220 }}
-                    />
-                    <button className={styles.btnPrimary} onClick={saveTitle}>
-                      保存
-                    </button>
-                    <button
-                      className={styles.btn}
-                      onClick={() => {
-                        setTitleError("");
-                        setTitleDraft(item.title);
-                        setIsEditingTitle(false);
-                      }}
-                    >
-                      キャンセル
-                    </button>
-                  </>
-                )}
+          <>
+            <section className={styles.card}>
+              <div className={styles.cardInner}>
+                <div className={styles.rowBetween}>
+                  {!isEditingTitle ? (
+                    <>
+                      <h2 className={styles.h2}>{item.title}</h2>
+                      <button
+                        className={`${styles.btn} ${styles.btnGhost}`}
+                        onClick={() => {
+                          setTitleError("");
+                          setTitleDraft(item.title);
+                          setIsEditingTitle(true);
+                        }}
+                      >
+                        編集
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <input
+                        className={styles.input}
+                        value={titleDraft}
+                        onChange={(e) => setTitleDraft(e.target.value)}
+                        placeholder="タイトル"
+                      />
+                      <div className={styles.row}>
+                        <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={saveTitle}>
+                          保存
+                        </button>
+                        <button
+                          className={`${styles.btn} ${styles.btnGhost}`}
+                          onClick={() => {
+                            setTitleError("");
+                            setTitleDraft(item.title);
+                            setIsEditingTitle(false);
+                          }}
+                        >
+                          キャンセル
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {titleError && <p className={styles.error}>{titleError}</p>}
+                <p className={styles.meta}>id: {item.id}</p>
               </div>
+            </section>
 
-              {titleError && <p className={styles.error}>{titleError}</p>}
-              <p className={styles.meta}>id: {item.id}</p>
-
-              {/* Step 1 */}
-              <section className={styles.subCard}>
+            {/* Step 1 */}
+            <section className={styles.card}>
+              <div className={styles.cardInner}>
                 <h3 className={styles.sectionTitle}>まず自由に書く（下書き）</h3>
-                <p className={styles.sectionHint}>思いついた順でOK。箇条書き推奨。AIで分類しても消えない。</p>
+                <p className={styles.hint}>思いついた順でOK。箇条書き推奨。ここは “Context” としてプロンプトにも渡す。</p>
 
                 <textarea
+                  className={styles.textarea}
                   value={freeText}
                   onChange={(e) => {
                     const v = e.target.value;
                     setFreeText(v);
                     if (id) saveDraft(id, v);
                   }}
-                  placeholder={"例）\n・片付けたい理由を言語化\n・捨てる基準を決める\n・ゴミ袋を買う\n"}
-                  className={styles.textarea}
+                  placeholder={"例）\n・期限：来週\n・レシートが散らばってる\n・何が不安か\n・最初の5分でやること\n"}
                 />
 
-                <div className={styles.actions}>
-                  <button className={styles.btnPrimary} onClick={categorizeMerge} disabled={catLoading}>
+                <div className={styles.row} style={{ marginTop: 10 }}>
+                  <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={categorizeMerge} disabled={catLoading}>
                     {catLoading ? "分類中…" : "AIで5カテゴリに分ける（取り込み）"}
                   </button>
 
-                  <button className={styles.btn} onClick={createEmptyChecklist}>
+                  <button className={`${styles.btn} ${styles.btnGhost}`} onClick={createEmptyChecklist}>
                     先に空のチェックリストを作る
                   </button>
                 </div>
 
                 {catError && <p className={styles.error}>{catError}</p>}
-              </section>
+              </div>
+            </section>
 
-              {/* Step 2 */}
-              {buckets && buckets.length > 0 && (
-                <section style={{ marginTop: 14 }}>
+            {/* Step 2 */}
+            {buckets && buckets.length > 0 && (
+              <section className={styles.card}>
+                <div className={styles.cardInner}>
                   <h3 className={styles.sectionTitle}>チェックリスト（編集OK）</h3>
-                  <p className={styles.sectionHint}>AI分類後も、手動で追加/削除/チェックできる。</p>
+                  <p className={styles.hint}>AI取り込み後も、手動で追加/削除/チェックできる。</p>
 
                   <div className={styles.bucketGrid}>
                     {buckets.map((b) => (
                       <section key={b.key} className={styles.bucketCard}>
-                        <div className={styles.bucketHeader}>
+                        <div className={styles.rowBetween}>
                           <h4 className={styles.bucketTitle}>{b.label}</h4>
-                          <button className={styles.btn} onClick={() => setAddText((prev) => ({ ...prev, [b.key]: prev[b.key] ?? "" }))}>
-                            ＋追加
-                          </button>
+                          <span className={styles.badge}>{(b.items ?? []).length}件</span>
                         </div>
 
-                        <div className={styles.addRow}>
+                        <div className={styles.row} style={{ marginTop: 10 }}>
                           <input
+                            className={styles.input}
                             value={addText[b.key] ?? ""}
                             onChange={(e) => setAddText((prev) => ({ ...prev, [b.key]: e.target.value }))}
                             placeholder="自分で追加…（Enterで追加）"
-                            className={styles.input}
                             onKeyDown={(e) => {
                               if (e.key === "Enter") addItem(b.key);
                             }}
                           />
-                          <button className={styles.btnPrimary} onClick={() => addItem(b.key)} disabled={!(addText[b.key] ?? "").trim()}>
+                          <button
+                            className={`${styles.btn} ${styles.btnPrimary}`}
+                            onClick={() => addItem(b.key)}
+                            disabled={!(addText[b.key] ?? "").trim()}
+                          >
                             追加
                           </button>
                         </div>
 
                         {(b.items ?? []).length === 0 ? (
-                          <p className={styles.sectionHint} style={{ marginTop: 10 }}>
+                          <p className={styles.hint} style={{ marginTop: 10 }}>
                             （まだ何もない）
                           </p>
                         ) : (
-                          <ul className={styles.items}>
+                          <ul className={styles.list}>
                             {(b.items ?? []).map((it) => (
-                              <li key={it.id} className={styles.itemRow}>
-                                <label className={styles.itemLabel}>
+                              <li key={it.id} className={styles.listItem}>
+                                <label className={styles.checkRow}>
                                   <input type="checkbox" checked={it.done} onChange={() => toggleDone(b.key, it.id)} />
-                                  <span style={{ textDecoration: it.done ? "line-through" : "none" }}>
+                                  <span className={it.done ? styles.done : ""}>
                                     {it.title}
-                                    <span className={styles.itemMeta}>({it.estimate_min}m)</span>
+                                    <span className={styles.est}>({it.estimate_min}m)</span>
                                   </span>
                                 </label>
 
-                                <button className={styles.btnDanger} onClick={() => deleteItem(b.key, it.id)}>
+                                <button className={`${styles.btn} ${styles.btnDanger}`} onClick={() => deleteItem(b.key, it.id)}>
                                   削除
                                 </button>
                               </li>
@@ -543,63 +559,52 @@ export default function Page() {
                       </section>
                     ))}
                   </div>
-                </section>
-              )}
+                </div>
+              </section>
+            )}
 
-              {/* Step 3 */}
-              <section className={styles.subCard} style={{ marginTop: 14 }}>
-                <h3 className={styles.sectionTitle}>最後に：コピー＆バトンパス用プロンプト</h3>
-                <p className={styles.sectionHint}>
-                  「プロンプト発行（最終）」で、他AIにそのまま渡せるMarkdownを生成する（チェックリスト付き）。
-                </p>
+            {/* Step 3 */}
+            <section className={styles.card}>
+              <div className={styles.cardInner}>
+                <h3 className={styles.sectionTitle}>最後に：プロンプト発行（他AIへコピペ）</h3>
+                <p className={styles.hint}>発行したプロンプトをそのまま他AIへ貼って、伴走を続ける。</p>
 
-                <div className={styles.actions}>
-                  <button
-                    className={styles.btn}
-                    onClick={() => copyText(formatChecklistMarkdown(item.title, buckets ?? null), "チェックリストコピーした")}
-                    disabled={!buckets || buckets.length === 0}
-                  >
-                    チェックリストをコピー（Markdown）
+                <div className={styles.row} style={{ marginTop: 10 }}>
+                  <button className={`${styles.btn} ${styles.btnGhost}`} onClick={() => router.push("/lists")}>
+                    ← Listsに戻る
                   </button>
 
-                  <button className={styles.btnPrimary} onClick={generatePrompt} disabled={promptLoading}>
+                  <button
+                    className={`${styles.btn} ${styles.btnPrimary}`}
+                    onClick={generateIssuedPrompt}
+                    disabled={promptLoading || !buckets || buckets.length === 0}
+                  >
                     {promptLoading ? "作成中…" : "プロンプト発行（最終）"}
                   </button>
 
-                  <button className={styles.btn} onClick={() => copyText(prompt, "プロンプトコピーした")} disabled={!prompt}>
+                  <button className={`${styles.btn} ${styles.btnGhost}`} onClick={copyPromptOnly} disabled={!issuedPrompt}>
                     プロンプトだけコピー（Markdown）
                   </button>
 
-                  <button
-                    className={styles.btn}
-                    onClick={async () => {
-                      let p = prompt ?? "";
-                      if (!p) {
-                        const generated = await generatePrompt();
-                        p = generated ?? "";
-                      }
-                      if (p) await copyText(p, "チェックリスト込みプロンプトをコピーした");
-                    }}
-                  >
-                    チェックリスト＋プロンプトをコピー（※プロンプト内に含む）
+                  <button className={`${styles.btn} ${styles.btnGhost}`} onClick={copyChecklistOnly} disabled={!buckets || buckets.length === 0}>
+                    チェックリストをコピー（Markdown）
+                  </button>
+
+                  <button className={`${styles.btn} ${styles.btnGhost}`} onClick={copyChecklistAndPrompt} disabled={!buckets || buckets.length === 0}>
+                    チェックリスト＋プロンプトをコピー（Markdown）
                   </button>
                 </div>
 
-                {promptError && <p className={styles.error}>{promptError}</p>}
-
-                {prompt && (
-                  <textarea readOnly value={prompt} className={styles.textarea} style={{ height: 260, marginTop: 10 }} />
+                {issuedPrompt && (
+                  <textarea className={styles.textareaTall} readOnly value={issuedPrompt} />
                 )}
-              </section>
-            </div>
-          </section>
+              </div>
+            </section>
+          </>
         )}
-
-        {!item && notFound && <p className={styles.error}>このリストは見つからなかった（ゲスト保存にも無いみたい）。</p>}
-        {!item && !notFound && <p className={styles.hint}>読み込み中…</p>}
-
-        {toast && <div className={styles.toast}>{toast}</div>}
       </div>
+
+      {toast && <div className={styles.toast}>{toast}</div>}
     </main>
   );
 }

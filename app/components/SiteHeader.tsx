@@ -1,37 +1,30 @@
-"use client";
-
 import Link from "next/link";
 import styles from "./SiteHeader.module.css";
 
-export type Pill = { text: string };
-export type NavLink = { href: string; label: string };
+type Pill = { text: string };
+type NavLink = { href: string; label: string };
 
 export type SiteHeaderProps = {
-  title?: string;
+  title: string;
   subtitle?: string;
   pills?: Pill[];
   navLinks?: NavLink[];
 };
 
-export default function SiteHeader({
-  title = "BarabaraDo",
-  subtitle,
-  pills = [],
-  navLinks = [],
-}: SiteHeaderProps) {
+export default function SiteHeader({ title, subtitle, pills = [], navLinks = [] }: SiteHeaderProps) {
   return (
     <header className={styles.header}>
       <div className={styles.inner}>
         <div className={styles.topRow}>
-          <Link href="/lists" className={styles.brand} aria-label="Go to lists">
+          <Link href="/lists" className={styles.brand}>
             🧸 BarabaraDo
           </Link>
 
           {navLinks.length > 0 && (
-            <nav className={styles.nav} aria-label="Site navigation">
-              {navLinks.map((l) => (
-                <Link key={l.href} href={l.href} className={styles.navLink}>
-                  {l.label}
+            <nav className={styles.nav} aria-label="Primary">
+              {navLinks.map((n) => (
+                <Link key={n.href} href={n.href} className={styles.navLink}>
+                  {n.label}
                 </Link>
               ))}
             </nav>
@@ -44,7 +37,7 @@ export default function SiteHeader({
           {pills.length > 0 && (
             <div className={styles.pills}>
               {pills.map((p, i) => (
-                <span key={`${p.text}-${i}`} className={styles.pill}>
+                <span key={`${p.text}_${i}`} className={styles.pill}>
                   {p.text}
                 </span>
               ))}
@@ -52,7 +45,7 @@ export default function SiteHeader({
           )}
         </div>
 
-        {subtitle && <p className={styles.subtitle}>{subtitle}</p>}
+        {subtitle ? <p className={styles.subtitle}>{subtitle}</p> : null}
       </div>
     </header>
   );
