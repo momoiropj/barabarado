@@ -12,26 +12,18 @@ type ListRow = {
   updatedAt?: string;
 };
 
-type ChecklistItem = {
+type TaskItem = {
   id: string;
-  title: string;
+  text: string;
   done: boolean;
-};
-
-type Bucket = {
-  key: string;
-  label: string;
-  items: ChecklistItem[];
-};
-
-type StoredDetail = {
-  draft: string;
-  buckets: Bucket[];
-  prompt: string; // ここは「最終コピペ用（Markdown）」を保存する
+  bucket: "inbox" | "today" | "week" | "someday";
+  createdAt: string;
 };
 
 const GUEST_LISTS_KEY = "bbdo_guest_lists_v1";
-const DETAIL_KEY = (id: string) => `bbdo_guest_list_detail_v1_${id}`;
+const ITEMS_KEY_PREFIX = "bbdo_guest_items_v1_";
+const DRAFT_KEY_PREFIX = "bbdo_guest_draft_v1_";
+const ISSUED_PROMPT_KEY_PREFIX = "bbdo_guest_issued_prompt_v1_";
 
 function safeParseJSON<T>(raw: string | null): T | null {
   if (!raw) return null;
@@ -42,452 +34,547 @@ function safeParseJSON<T>(raw: string | null): T | null {
   }
 }
 
-function uid() {
-  return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+function uid(): string {
+  // crypto.randomUUID が無い環境もあるのでフォールバック
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const c: any = globalThis.crypto;
+  if (c?.randomUUID) return c.randomUUID();
+  return `id_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 }
 
 function loadGuestLists(): ListRow[] {
-  if (typeof window === "undefined") return [];
-  const parsed = safeParseJSON<ListRow[]>(localStorage.getItem(GUEST_LISTS_KEY));
-  if (!parsed || !Array.isArray(parsed)) return [];
+  const parsed = safeParseJSON<unknown>(localStorage.getItem(GUEST_LISTS_KEY));
+  if (!Array.isArray(parsed)) return [];
   return parsed
-    .filter((x) => x && typeof x.id === "string" && typeof x.title === "string")
-    .map((x) => ({
-      id: x.id,
-      title: x.title,
-      createdAt: x.createdAt,
-      updatedAt: x.updatedAt,
-    }));
+    .map((x: any) => ({
+      id: String(x?.id ?? ""),
+      title: String(x?.title ?? ""),
+      createdAt: String(x?.createdAt ?? ""),
+      updatedAt: String(x?.updatedAt ?? ""),
+    }))
+    .filter((x) => x.id && x.title);
 }
 
 function saveGuestLists(lists: ListRow[]) {
-  if (typeof window === "undefined") return;
   localStorage.setItem(GUEST_LISTS_KEY, JSON.stringify(lists));
 }
 
-function createEmptyBuckets(): Bucket[] {
+function loadTasks(listId: string): TaskItem[] {
+  const parsed = safeParseJSON<unknown>(localStorage.getItem(`${ITEMS_KEY_PREFIX}${listId}`));
+  if (!Array.isArray(parsed)) return [];
+  return parsed
+    .map((x: any) => ({
+      id: String(x?.id ?? uid()),
+      text: String(x?.text ?? ""),
+      done: Boolean(x?.done ?? false),
+      bucket: (x?.bucket ?? "inbox") as TaskItem["bucket"],
+      createdAt: String(x?.createdAt ?? new Date().toISOString()),
+    }))
+    .filter((t) => t.text);
+}
+
+function saveTasks(listId: string, tasks: TaskItem[]) {
+  localStorage.setItem(`${ITEMS_KEY_PREFIX}${listId}`, JSON.stringify(tasks));
+}
+
+function loadDraft(listId: string): string {
+  return localStorage.getItem(`${DRAFT_KEY_PREFIX}${listId}`) ?? "";
+}
+
+function saveDraft(listId: string, draft: string) {
+  localStorage.setItem(`${DRAFT_KEY_PREFIX}${listId}`, draft);
+}
+
+function loadIssuedPrompt(listId: string): string {
+  return localStorage.getItem(`${ISSUED_PROMPT_KEY_PREFIX}${listId}`) ?? "";
+}
+
+function saveIssuedPrompt(listId: string, prompt: string) {
+  localStorage.setItem(`${ISSUED_PROMPT_KEY_PREFIX}${listId}`, prompt);
+}
+
+/**
+ * BarabaradoのAI分解結果から、メモ帳コピペ用チェックリストっぽい行を抽出する
+ * - [ ] 〜 の行を優先
+ */
+function extractChecklistLines(text: string): string[] {
+  const lines = text.split(/\r?\n/).map((l) => l.trim());
+  const checks = lines
+    .map((l) => {
+      const m = l.match(/^- \[\s*\]\s*(.+)$/);
+      return m ? m[1].trim() : null;
+    })
+    .filter(Boolean) as string[];
+
+  if (checks.length > 0) return checks;
+
+  // フォールバック：箇条書きっぽい行
+  const bullets = lines
+    .map((l) => {
+      const m = l.match(/^[-•]\s+(.+)$/);
+      return m ? m[1].trim() : null;
+    })
+    .filter(Boolean) as string[];
+
+  return bullets.slice(0, 20);
+}
+
+function buildIssuedPromptMarkdown(params: {
+  todoTitle: string;
+  draft: string;
+  tasks: TaskItem[];
+}): string {
+  const { todoTitle, draft, tasks } = params;
+
+  const checklist =
+    tasks.length > 0
+      ? [
+          "以下は現時点でチェックリストになります。",
+          "",
+          ...tasks.map((t) => `- [ ] ${t.text}`),
+        ].join("\n")
+      : "";
+
   return [
-    { key: "why", label: "なぜやる？（目的/気持ち）", items: [] },
-    { key: "now", label: "現状確認（手元/条件/期限）", items: [] },
-    { key: "prep", label: "準備（道具/情報/人）", items: [] },
-    { key: "do", label: "実行（小さく進める）", items: [] },
-    { key: "review", label: "確認/完了条件", items: [] },
-  ];
-}
-
-function loadDetail(id: string): StoredDetail {
-  if (typeof window === "undefined") return { draft: "", buckets: createEmptyBuckets(), prompt: "" };
-
-  const parsed = safeParseJSON<StoredDetail>(localStorage.getItem(DETAIL_KEY(id)));
-  if (!parsed) return { draft: "", buckets: createEmptyBuckets(), prompt: "" };
-
-  return {
-    draft: typeof parsed.draft === "string" ? parsed.draft : "",
-    buckets: Array.isArray(parsed.buckets) ? (parsed.buckets as Bucket[]) : createEmptyBuckets(),
-    prompt: typeof parsed.prompt === "string" ? parsed.prompt : "",
-  };
-}
-
-function saveDetail(id: string, detail: StoredDetail) {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(DETAIL_KEY(id), JSON.stringify(detail));
-}
-
-function formatChecklistMarkdown(buckets: Bucket[]) {
-  const lines: string[] = [];
-  for (const b of buckets) {
-    lines.push(`#### ${b.label}`);
-    if (!b.items?.length) {
-      lines.push(`- [ ] （未入力）`);
-      lines.push("");
-      continue;
-    }
-    for (const it of b.items) {
-      lines.push(`- [${it.done ? "x" : " "}] ${it.title}`);
-    }
-    lines.push("");
-  }
-  return lines.join("\n").trim();
-}
-
-function buildIssuedPrompt(basePrompt: string, buckets: Bucket[]) {
-  const baton = [
-    "あなたはユーザーの伴走AI。",
-    "ユーザーは BarabaraDo でToDoを分解し、今ここに来た。",
+    "## Prompt",
     "",
-    "最初に短く受け取り宣言（例：「OK、BarabaraDoからバトンパス受け取ったよ！」）。",
-    "次に、以下をやる：",
-    "1) ユーザーの状況に合わせてチェックリストを微調整（不足追加・粒度調整・順番最適化）",
-    "2) 今日やる最初の5分を提案（摩擦が小さい行動）",
-    "3) 質問は最大2つ（ただし提案の後）",
-    "4) 返信は日本語・口語・前向き。長文説教は禁止。",
-  ].join("\n");
-
-  const checklistBlock = formatChecklistMarkdown(buckets);
-  const checklistSection = checklistBlock
-    ? `\n\n### 以下は現時点でチェックリストになります。\n${checklistBlock}\n`
-    : "";
-
-  return `## Prompt\n${baton}\n\n---\n\n${basePrompt.trim()}\n${checklistSection}`.trim() + "\n";
+    "あなたはユーザーのパーソナルAIコーチ。",
+    "以下はBarabaraDoからバトンパスされた情報。",
+    "最初に必ず、次の一言から始める：",
+    "「OK，BarabaraDoからバトンパスされたよ！ここからは私がサポートするよ」",
+    "",
+    "次に、ユーザーに合わせてチェックリストを最適化し、今日の最初の一手（5〜15分）を提案する。",
+    "迷いが出た時の質問（最大2つ）も添える。",
+    "",
+    "### ToDo",
+    `- ${todoTitle}`,
+    "",
+    "### User Draft (任意のメモ)",
+    draft ? `- ${draft.replace(/\r?\n/g, "\n- ")}` : "- （空）",
+    "",
+    checklist ? "### Checklist" : "",
+    checklist ? checklist : "",
+    "",
+    "### あなたの出力フォーマット",
+    "1) 最初の一手（5〜15分）×3",
+    "2) 今日やる順番（優先順位）",
+    "3) チェックリストの改善案（追加・削除・並び替え）",
+    "4) 迷ったときの質問（最大2つ）",
+    "",
+  ]
+    .filter((x) => x !== "")
+    .join("\n");
 }
 
 export default function Page() {
   const router = useRouter();
   const params = useParams();
+  const rawId = (params as any)?.id as string | string[] | undefined;
+  const listId = Array.isArray(rawId) ? rawId[0] : rawId;
 
-  const id = useMemo(() => {
-    const raw = (params as any)?.id;
-    return Array.isArray(raw) ? raw[0] : String(raw || "");
-  }, [params]);
+  const [toast, setToast] = useState<string | null>(null);
+  const showToast = (msg: string) => {
+    setToast(msg);
+    window.setTimeout(() => setToast(null), 1400);
+  };
 
-  const [title, setTitle] = useState<string>("");
+  const [listTitle, setListTitle] = useState<string>("");
+
   const [draft, setDraft] = useState<string>("");
-  const [buckets, setBuckets] = useState<Bucket[]>(createEmptyBuckets());
-  const [issuedPrompt, setIssuedPrompt] = useState<string>("");
+  const [tasks, setTasks] = useState<TaskItem[]>([]);
+  const [newTaskText, setNewTaskText] = useState<string>("");
 
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
+  const [error, setError] = useState<string>("");
+
+  const [issuedPrompt, setIssuedPrompt] = useState<string>("");
 
   useEffect(() => {
-    if (!id) return;
+    if (!listId) return;
 
     const lists = loadGuestLists();
-    const row = lists.find((x) => x.id === id);
-    if (!row) {
-      setError("リストが見つからない。/lists に戻って作り直してね。");
+    const row = lists.find((l) => l.id === listId);
+    setListTitle(row?.title ?? "");
+
+    setDraft(loadDraft(listId));
+    setTasks(loadTasks(listId));
+    setIssuedPrompt(loadIssuedPrompt(listId));
+  }, [listId]);
+
+  const titleForHeader = useMemo(() => {
+    const t = (listTitle || "リスト").trim();
+    return `${t} を作る`;
+  }, [listTitle]);
+
+  const grouped = useMemo(() => {
+    const base = {
+      inbox: [] as TaskItem[],
+      today: [] as TaskItem[],
+      week: [] as TaskItem[],
+      someday: [] as TaskItem[],
+    };
+
+    for (const t of tasks) base[t.bucket].push(t);
+
+    const sortFn = (a: TaskItem, b: TaskItem) => {
+      if (a.done !== b.done) return a.done ? 1 : -1;
+      return a.createdAt.localeCompare(b.createdAt);
+    };
+
+    base.inbox.sort(sortFn);
+    base.today.sort(sortFn);
+    base.week.sort(sortFn);
+    base.someday.sort(sortFn);
+
+    return base;
+  }, [tasks]);
+
+  const persistTasks = (next: TaskItem[]) => {
+    setTasks(next);
+    if (listId) saveTasks(listId, next);
+  };
+
+  const persistDraft = (next: string) => {
+    setDraft(next);
+    if (listId) saveDraft(listId, next);
+  };
+
+  const toggleDone = (id: string) => {
+    const next = tasks.map((t) => (t.id === id ? { ...t, done: !t.done } : t));
+    persistTasks(next);
+  };
+
+  const changeBucket = (id: string, bucket: TaskItem["bucket"]) => {
+    const next = tasks.map((t) => (t.id === id ? { ...t, bucket } : t));
+    persistTasks(next);
+  };
+
+  const removeTask = (id: string) => {
+    const next = tasks.filter((t) => t.id !== id);
+    persistTasks(next);
+  };
+
+  const addTask = (bucket: TaskItem["bucket"]) => {
+    setError("");
+    const text = newTaskText.trim();
+    if (!text) {
+      setError("タスクを入れてね");
       return;
     }
-    setTitle(row.title);
-    document.title = `${row.title} | BarabaraDo`;
-
-    const detail = loadDetail(id);
-    setDraft(detail.draft);
-    setBuckets(detail.buckets?.length ? detail.buckets : createEmptyBuckets());
-    setIssuedPrompt(detail.prompt || "");
-  }, [id]);
-
-  useEffect(() => {
-    if (!toast) return;
-    const t = window.setTimeout(() => setToast(null), 1600);
-    return () => window.clearTimeout(t);
-  }, [toast]);
-
-  const persist = (next: Partial<StoredDetail>) => {
-    if (!id) return;
-    const current = loadDetail(id);
-    const merged: StoredDetail = {
-      draft: next.draft ?? current.draft,
-      buckets: next.buckets ?? current.buckets,
-      prompt: next.prompt ?? current.prompt,
-    };
-    saveDetail(id, merged);
-
-    // lists の updatedAt を更新
-    const lists = loadGuestLists();
-    const idx = lists.findIndex((x) => x.id === id);
-    if (idx >= 0) {
-      lists[idx] = { ...lists[idx], updatedAt: new Date().toISOString() };
-      saveGuestLists(lists);
-    }
+    const now = new Date().toISOString();
+    const next: TaskItem[] = [{ id: uid(), text, done: false, bucket, createdAt: now }, ...tasks];
+    persistTasks(next);
+    setNewTaskText("");
+    showToast("追加した");
   };
 
   const runBreakdown = async () => {
-    setError(null);
-    setBusy(true);
+    if (!listId) return;
+    setError("");
+    const todo = (draft || listTitle || "").trim();
+    if (!todo) {
+      setError("まずは下書き（またはタイトル）を書いてね");
+      return;
+    }
+
     try {
+      setBusy(true);
+
       const res = await fetch("/api/ai/breakdown", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          todo: title,
-          context: draft,
-        }),
+        body: JSON.stringify({ todo, context: "" }),
       });
 
-      if (!res.ok) throw new Error("breakdown failed");
-      const data = await res.json();
-      const text = typeof data?.text === "string" ? data.text : "";
-      if (!text.trim()) throw new Error("empty breakdown");
-      setDraft(text);
-      persist({ draft: text });
-      setToast("分解した（文章）");
-    } catch (e) {
-      setError("分解に失敗。APIがまだなら一旦スキップでOK。");
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "");
+        throw new Error(txt || `HTTP ${res.status}`);
+      }
+
+      const data = await res.json().catch(() => ({} as any));
+      const text: string =
+        String((data as any)?.text ?? (data as any)?.result ?? (data as any)?.message ?? "");
+
+      const lines = extractChecklistLines(text);
+      if (lines.length === 0) {
+        setError("分解は返ってきたけど、チェックリスト行が抽出できなかった…（表示内容を見て調整しよ）");
+        return;
+      }
+
+      const now = new Date().toISOString();
+      const added: TaskItem[] = lines.map((l) => ({
+        id: uid(),
+        text: l,
+        done: false,
+        bucket: "inbox",
+        createdAt: now,
+      }));
+
+      persistTasks([...added, ...tasks]);
+      showToast("チェックリスト追加した");
+    } catch (e: any) {
+      setError(`AI分解でコケた：${e?.message ?? String(e)}`);
     } finally {
       setBusy(false);
     }
-  };
-
-  const categorize = async () => {
-    setError(null);
-    setBusy(true);
-    try {
-      const res = await fetch("/api/categorize", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title,
-          draft,
-          buckets,
-        }),
-      });
-
-      if (!res.ok) throw new Error("categorize failed");
-      const data = await res.json();
-
-      const nextBuckets: Bucket[] = Array.isArray(data?.buckets) ? data.buckets : null;
-      if (!nextBuckets) throw new Error("bad response");
-
-      setBuckets(nextBuckets);
-      persist({ buckets: nextBuckets });
-      setToast("チェックリスト更新した");
-    } catch (e) {
-      setError("カテゴリ分けに失敗。/api/categorize の戻り値を確認してね。");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const toggleItem = (bucketKey: string, itemId: string) => {
-    const next = buckets.map((b) => {
-      if (b.key !== bucketKey) return b;
-      return {
-        ...b,
-        items: b.items.map((it) => (it.id === itemId ? { ...it, done: !it.done } : it)),
-      };
-    });
-    setBuckets(next);
-    persist({ buckets: next });
-  };
-
-  const addItem = (bucketKey: string) => {
-    const text = window.prompt("追加するチェック項目（1行）");
-    if (!text) return;
-
-    const next = buckets.map((b) => {
-      if (b.key !== bucketKey) return b;
-      return {
-        ...b,
-        items: [...b.items, { id: uid(), title: text.trim(), done: false }],
-      };
-    });
-    setBuckets(next);
-    persist({ buckets: next });
-  };
-
-  const deleteItem = (bucketKey: string, itemId: string) => {
-    const next = buckets.map((b) => {
-      if (b.key !== bucketKey) return b;
-      return {
-        ...b,
-        items: b.items.filter((it) => it.id !== itemId),
-      };
-    });
-    setBuckets(next);
-    persist({ buckets: next });
   };
 
   const issuePrompt = async () => {
-    setError(null);
-    setBusy(true);
-    try {
-      const res = await fetch("/api/prompt", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title,
-          buckets,
-        }),
-      });
+    if (!listId) return;
+    setError("");
 
-      if (!res.ok) throw new Error("prompt failed");
-      const data = await res.json();
-      const basePrompt = typeof data?.prompt === "string" ? data.prompt : "";
-      if (!basePrompt.trim()) throw new Error("empty prompt");
+    const p = buildIssuedPromptMarkdown({
+      todoTitle: listTitle || "リスト",
+      draft,
+      tasks,
+    });
 
-      const finalPrompt = buildIssuedPrompt(basePrompt, buckets);
-      setIssuedPrompt(finalPrompt);
-      persist({ prompt: finalPrompt });
-
-      try {
-        await navigator.clipboard.writeText(finalPrompt);
-        setToast("プロンプト発行＆コピーした");
-      } catch {
-        setToast("プロンプト発行した（コピーは手動）");
-      }
-    } catch (e) {
-      setError("プロンプト発行に失敗。/api/prompt を確認してね。");
-    } finally {
-      setBusy(false);
-    }
+    setIssuedPrompt(p);
+    saveIssuedPrompt(listId, p);
+    showToast("プロンプト発行した");
   };
 
-  const copyChecklist = async () => {
-    const text = formatChecklistMarkdown(buckets) + "\n";
+  const copyToClipboard = async (text: string, okMsg: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      setToast("チェックリストコピーした");
+      showToast(okMsg);
     } catch {
-      setToast("コピー失敗（手動で）");
+      setError("コピーできなかった（ブラウザの権限/HTTPSを確認してね）");
     }
   };
 
-  const copyPrompt = async () => {
-    try {
-      await navigator.clipboard.writeText(issuedPrompt || "");
-      setToast("プロンプトコピーした");
-    } catch {
-      setToast("コピー失敗（手動で）");
-    }
-  };
-
-  const deleteThisList = () => {
-    const ok = window.confirm("このリストを削除する？（戻せない）");
-    if (!ok) return;
-
-    const lists = loadGuestLists().filter((x) => x.id !== id);
-    saveGuestLists(lists);
-    try {
-      localStorage.removeItem(DETAIL_KEY(id));
-    } catch {
-      // ignore
-    }
-    router.push("/lists");
-  };
+  if (!listId) {
+    return (
+      <main className={styles.main}>
+        <div className={styles.container}>
+          <p className={styles.hint}>IDが取れなかった…URLを確認してね</p>
+          <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={() => router.push("/lists")}>
+            ← Listsへ
+          </button>
+        </div>
+      </main>
+    );
+  }
 
   return (
-    <main className={styles.main}>
+    <>
       <SiteHeader
-        title={title || "List"}
+        title={titleForHeader}
         subtitle="下書き → 分解 → チェックリスト化 → プロンプト発行（他AIへバトンパス）"
-        pills={[{ text: "🧸 BarabaraDo（ゲスト）" }, { text: "🧠 分解 → 編集 → 発行" }]}
         backHref="/lists"
         backLabel="← Lists"
         navLinks={[
           { href: "/help", label: "Help" },
           { href: "/concept", label: "Concept" },
         ]}
+        statusLines={[
+          { icon: "🧸", text: "ゲストモード" },
+          { icon: "🔒", text: "この端末のブラウザに保存します" },
+        ]}
       />
 
-      <div className={styles.container}>
-        <section className={styles.card}>
-          <div className={styles.cardInner}>
-            <div className={styles.sectionTopRow}>
-              <h2 className={styles.sectionTitle}>下書き（そのまま書く）</h2>
+      <main className={styles.main}>
+        <div className={styles.container}>
+          {/* 下書き */}
+          <section className={styles.card}>
+            <div className={styles.cardInner}>
+              <h2 className={styles.h2}>下書き</h2>
+              <p className={styles.hint}>1行でもOK。ここからAI分解して、タスクに落とす。</p>
+
+              <textarea
+                className={styles.textarea}
+                value={draft}
+                onChange={(e) => persistDraft(e.target.value)}
+                placeholder="例）ビリヤニ作りたい。材料買う→仕込み→炊く→盛り付け→写真撮る…みたいに"
+              />
+
               <div className={styles.row}>
-                <button className={`${styles.btn} ${styles.btnGhost}`} onClick={runBreakdown} disabled={busy}>
-                  AIで分解（文章）
+                <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={runBreakdown} disabled={busy}>
+                  {busy ? "分解中…" : "AIで分解してチェックリスト追加"}
                 </button>
-                <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={categorize} disabled={busy}>
-                  チェックリスト更新
+
+                <button className={styles.btn} onClick={issuePrompt} disabled={busy}>
+                  プロンプト発行
+                </button>
+              </div>
+
+              {error ? <p className={styles.error}>{error}</p> : null}
+            </div>
+          </section>
+
+          {/* 追加 */}
+          <section className={styles.card}>
+            <div className={styles.cardInner}>
+              <h2 className={styles.h2}>タスク追加</h2>
+              <div className={styles.row} style={{ marginTop: 10 }}>
+                <input
+                  className={styles.input}
+                  value={newTaskText}
+                  onChange={(e) => setNewTaskText(e.target.value)}
+                  placeholder="例）鶏肉をヨーグルトに漬ける / スパイスを計量する"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") addTask("inbox");
+                  }}
+                />
+                <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={() => addTask("inbox")}>
+                  ＋Inbox
                 </button>
               </div>
             </div>
+          </section>
 
-            <p className={styles.sectionHint}>
-              ここは雑でOK。今の不安、状況、期限、関係者、わからないこと、全部投げていい。
-            </p>
+          {/* チェックリスト */}
+          <section className={styles.card}>
+            <div className={styles.cardInner}>
+              <h2 className={styles.h2}>チェックリスト</h2>
+              <p className={styles.hint}>チェック→移動→削除。優先度は「Today」に寄せる。</p>
 
-            <textarea
-              className={styles.textarea}
-              rows={8}
-              value={draft}
-              onChange={(e) => {
-                setDraft(e.target.value);
-                persist({ draft: e.target.value });
-              }}
-              placeholder="例：何から手をつければいいか分からない。期限は◯日。必要書類が不明。"
-            />
+              <div className={styles.bucketGrid}>
+                <div className={styles.bucket}>
+                  <div className={styles.bucketTitle}>Inbox</div>
+                  {grouped.inbox.length === 0 ? <div className={styles.empty}>（なし）</div> : null}
+                  {grouped.inbox.map((t) => (
+                    <div key={t.id} className={styles.taskRow}>
+                      <label className={styles.check}>
+                        <input type="checkbox" checked={t.done} onChange={() => toggleDone(t.id)} />
+                        <span className={t.done ? styles.done : ""}>{t.text}</span>
+                      </label>
 
-            {error ? <p className={styles.error}>{error}</p> : null}
-          </div>
-        </section>
-
-        <section className={styles.card}>
-          <div className={styles.cardInner}>
-            <div className={styles.sectionTopRow}>
-              <h2 className={styles.sectionTitle}>チェックリスト</h2>
-              <div className={styles.row}>
-                <button className={`${styles.btn} ${styles.btnGhost}`} onClick={copyChecklist}>
-                  チェックリストをコピー
-                </button>
-                <button className={`${styles.btn} ${styles.btnDanger}`} onClick={deleteThisList}>
-                  このリストを削除
-                </button>
-              </div>
-            </div>
-
-            <div className={styles.bucketGrid}>
-              {buckets.map((b) => (
-                <div key={b.key} className={styles.bucketCard}>
-                  <div className={styles.bucketTop}>
-                    <h3 className={styles.bucketTitle}>{b.label}</h3>
-                    <button className={`${styles.btn} ${styles.btnSmall}`} onClick={() => addItem(b.key)}>
-                      ＋追加
-                    </button>
-                  </div>
-
-                  <div className={styles.items}>
-                    {b.items?.length ? (
-                      b.items.map((it) => (
-                        <div key={it.id} className={styles.itemRow}>
-                          <label className={styles.itemLeft}>
-                            <input
-                              type="checkbox"
-                              checked={it.done}
-                              onChange={() => toggleItem(b.key, it.id)}
-                            />
-                            <span className={it.done ? styles.itemDone : styles.itemText}>{it.title}</span>
-                          </label>
-                          <button className={`${styles.btn} ${styles.btnIcon}`} onClick={() => deleteItem(b.key, it.id)}>
-                            ×
-                          </button>
-                        </div>
-                      ))
-                    ) : (
-                      <p className={styles.muted}>まだ空。＋追加か「チェックリスト更新」で埋めよう。</p>
-                    )}
-                  </div>
+                      <div className={styles.taskActions}>
+                        <select
+                          className={styles.select}
+                          value={t.bucket}
+                          onChange={(e) => changeBucket(t.id, e.target.value as TaskItem["bucket"])}
+                        >
+                          <option value="inbox">Inbox</option>
+                          <option value="today">Today</option>
+                          <option value="week">This Week</option>
+                          <option value="someday">Someday</option>
+                        </select>
+                        <button className={styles.iconBtn} onClick={() => removeTask(t.id)} aria-label="delete">
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </div>
-        </section>
 
-        <section className={styles.card}>
-          <div className={styles.cardInner}>
-            <div className={styles.sectionTopRow}>
-              <h2 className={styles.sectionTitle}>プロンプト発行（Markdown / コピペ用）</h2>
-              <div className={styles.row}>
-                <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={issuePrompt} disabled={busy}>
-                  発行してコピー
-                </button>
-                <button className={`${styles.btn} ${styles.btnGhost}`} onClick={copyPrompt} disabled={!issuedPrompt}>
-                  プロンプトだけコピー
-                </button>
+                <div className={styles.bucket}>
+                  <div className={styles.bucketTitle}>Today</div>
+                  {grouped.today.length === 0 ? <div className={styles.empty}>（なし）</div> : null}
+                  {grouped.today.map((t) => (
+                    <div key={t.id} className={styles.taskRow}>
+                      <label className={styles.check}>
+                        <input type="checkbox" checked={t.done} onChange={() => toggleDone(t.id)} />
+                        <span className={t.done ? styles.done : ""}>{t.text}</span>
+                      </label>
+
+                      <div className={styles.taskActions}>
+                        <select
+                          className={styles.select}
+                          value={t.bucket}
+                          onChange={(e) => changeBucket(t.id, e.target.value as TaskItem["bucket"])}
+                        >
+                          <option value="inbox">Inbox</option>
+                          <option value="today">Today</option>
+                          <option value="week">This Week</option>
+                          <option value="someday">Someday</option>
+                        </select>
+                        <button className={styles.iconBtn} onClick={() => removeTask(t.id)} aria-label="delete">
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className={styles.bucket}>
+                  <div className={styles.bucketTitle}>This Week</div>
+                  {grouped.week.length === 0 ? <div className={styles.empty}>（なし）</div> : null}
+                  {grouped.week.map((t) => (
+                    <div key={t.id} className={styles.taskRow}>
+                      <label className={styles.check}>
+                        <input type="checkbox" checked={t.done} onChange={() => toggleDone(t.id)} />
+                        <span className={t.done ? styles.done : ""}>{t.text}</span>
+                      </label>
+
+                      <div className={styles.taskActions}>
+                        <select
+                          className={styles.select}
+                          value={t.bucket}
+                          onChange={(e) => changeBucket(t.id, e.target.value as TaskItem["bucket"])}
+                        >
+                          <option value="inbox">Inbox</option>
+                          <option value="today">Today</option>
+                          <option value="week">This Week</option>
+                          <option value="someday">Someday</option>
+                        </select>
+                        <button className={styles.iconBtn} onClick={() => removeTask(t.id)} aria-label="delete">
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className={styles.bucket}>
+                  <div className={styles.bucketTitle}>Someday</div>
+                  {grouped.someday.length === 0 ? <div className={styles.empty}>（なし）</div> : null}
+                  {grouped.someday.map((t) => (
+                    <div key={t.id} className={styles.taskRow}>
+                      <label className={styles.check}>
+                        <input type="checkbox" checked={t.done} onChange={() => toggleDone(t.id)} />
+                        <span className={t.done ? styles.done : ""}>{t.text}</span>
+                      </label>
+
+                      <div className={styles.taskActions}>
+                        <select
+                          className={styles.select}
+                          value={t.bucket}
+                          onChange={(e) => changeBucket(t.id, e.target.value as TaskItem["bucket"])}
+                        >
+                          <option value="inbox">Inbox</option>
+                          <option value="today">Today</option>
+                          <option value="week">This Week</option>
+                          <option value="someday">Someday</option>
+                        </select>
+                        <button className={styles.iconBtn} onClick={() => removeTask(t.id)} aria-label="delete">
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
+          </section>
 
-            <p className={styles.sectionHint}>
-              発行すると「BarabaraDoからバトンパス」指示と、今のチェックリストが自動で付く。
-            </p>
+          {/* プロンプト */}
+          <section className={styles.card}>
+            <div className={styles.cardInner}>
+              <div className={styles.row} style={{ justifyContent: "space-between" }}>
+                <h2 className={styles.h2} style={{ margin: 0 }}>
+                  発行したプロンプト
+                </h2>
 
-            <textarea
-              className={styles.textarea}
-              rows={10}
-              value={issuedPrompt}
-              onChange={(e) => {
-                setIssuedPrompt(e.target.value);
-                persist({ prompt: e.target.value });
-              }}
-              placeholder="ここに最終プロンプトが出る。発行ボタンを押してね。"
-            />
-          </div>
-        </section>
-      </div>
+                <button
+                  className={styles.btn}
+                  onClick={() => copyToClipboard(issuedPrompt, "プロンプトをコピーした")}
+                  disabled={!issuedPrompt}
+                >
+                  コピー
+                </button>
+              </div>
 
-      {toast ? <div className={styles.toast}>{toast}</div> : null}
-    </main>
+              <p className={styles.hint}>他のAIにそのままコピペしてOK。</p>
+
+              <textarea className={styles.textarea} value={issuedPrompt} readOnly placeholder="発行するとここに出るよ" />
+            </div>
+          </section>
+        </div>
+
+        {toast ? <div className={styles.toast}>{toast}</div> : null}
+      </main>
+    </>
   );
 }

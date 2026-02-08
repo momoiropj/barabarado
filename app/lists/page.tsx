@@ -2,8 +2,8 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import SiteHeader from "@/app/components/SiteHeader";
 import styles from "./page.module.css";
+import SiteHeader from "@/app/components/SiteHeader";
 
 type ListRow = {
   id: string;
@@ -23,71 +23,76 @@ function safeParseJSON<T>(raw: string | null): T | null {
   }
 }
 
-function uid() {
-  return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+function uid(): string {
+  // crypto.randomUUID が無い環境もあるのでフォールバック
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const c: any = globalThis.crypto;
+  if (c?.randomUUID) return c.randomUUID();
+  return `id_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 }
 
 function loadGuestLists(): ListRow[] {
-  if (typeof window === "undefined") return [];
-  const parsed = safeParseJSON<ListRow[]>(localStorage.getItem(GUEST_LISTS_KEY));
-  if (!parsed || !Array.isArray(parsed)) return [];
+  const parsed = safeParseJSON<unknown>(localStorage.getItem(GUEST_LISTS_KEY));
+  if (!Array.isArray(parsed)) return [];
   return parsed
-    .filter((x) => x && typeof x.id === "string" && typeof x.title === "string")
-    .map((x) => ({
-      id: x.id,
-      title: x.title,
-      createdAt: x.createdAt,
-      updatedAt: x.updatedAt,
-    }));
+    .map((x: any) => ({
+      id: String(x?.id ?? ""),
+      title: String(x?.title ?? ""),
+      createdAt: String(x?.createdAt ?? ""),
+      updatedAt: String(x?.updatedAt ?? ""),
+    }))
+    .filter((x) => x.id && x.title);
 }
 
 function saveGuestLists(lists: ListRow[]) {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(GUEST_LISTS_KEY, JSON.stringify(lists));
+  try {
+    localStorage.setItem(GUEST_LISTS_KEY, JSON.stringify(lists));
+  } catch {}
 }
 
 export default function Page() {
   const router = useRouter();
 
-  const [lists, setLists] = useState<ListRow[]>([]);
-  const [newTitle, setNewTitle] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const showToast = (msg: string) => {
+    setToast(msg);
+    window.setTimeout(() => setToast(null), 1400);
+  };
+
+  const [lists, setLists] = useState<ListRow[]>([]);
+  const [title, setTitle] = useState("");
+  const [error, setError] = useState("");
 
   useEffect(() => {
     setLists(loadGuestLists());
   }, []);
 
-  useEffect(() => {
-    if (!toast) return;
-    const t = window.setTimeout(() => setToast(null), 1600);
-    return () => window.clearTimeout(t);
-  }, [toast]);
-
   const sorted = useMemo(() => {
-    const copy = [...lists];
-    copy.sort((a, b) => {
+    // updatedAt / createdAt があれば新しい順、なければタイトル順
+    return [...lists].sort((a, b) => {
       const at = a.updatedAt || a.createdAt || "";
       const bt = b.updatedAt || b.createdAt || "";
-      return bt.localeCompare(at);
+      if (at && bt) return bt.localeCompare(at);
+      return a.title.localeCompare(b.title);
     });
-    return copy;
   }, [lists]);
 
   const createList = () => {
-    setError(null);
-    const title = newTitle.trim();
-    if (!title) {
-      setError("タイトルを入れてね（1行でOK）");
+    setError("");
+    const t = title.trim();
+    if (!t) {
+      setError("タイトルを入れてね");
       return;
     }
+
     const now = new Date().toISOString();
-    const row: ListRow = { id: uid(), title, createdAt: now, updatedAt: now };
+    const row: ListRow = { id: uid(), title: t, createdAt: now, updatedAt: now };
     const next = [row, ...lists];
     setLists(next);
     saveGuestLists(next);
-    setNewTitle("");
-    setToast("リスト作った");
+    setTitle("");
+    showToast("リスト作った");
+    router.push(`/lists/${row.id}`);
   };
 
   const openList = (id: string) => {
@@ -95,29 +100,23 @@ export default function Page() {
   };
 
   const deleteList = (id: string) => {
-    const ok = window.confirm("このリストを削除する？（チェックリスト等も消える）");
+    const ok = window.confirm("このリストを削除する？（この端末から消える）");
     if (!ok) return;
 
-    const next = lists.filter((x) => x.id !== id);
+    const next = lists.filter((l) => l.id !== id);
     setLists(next);
     saveGuestLists(next);
-
-    try {
-      localStorage.removeItem(`bbdo_guest_list_detail_v1_${id}`);
-    } catch {
-      // ignore
-    }
-
-    setToast("削除した");
+    showToast("削除した");
   };
 
   return (
     <main className={styles.main}>
       <SiteHeader
         title="Lists"
-        subtitle="1行で作って、分解して、チェックリスト化。最後にプロンプト発行で他AIへバトンパス。"
-        pills={[{ text: "🧸 BarabaraDo（ゲスト）" }, { text: "🔒 この端末のブラウザに保存" }]}
+        subtitle="リストを作る → 分解する → チェックリスト化 → プロンプト発行（他AIへバトンパス）"
+        topRightLines={["🧸 ゲストモード", "🔒 この端末のブラウザに保存します"]}
         navLinks={[
+          // ★順番：Help → Concept
           { href: "/help", label: "Help" },
           { href: "/concept", label: "Concept" },
         ]}
@@ -127,51 +126,55 @@ export default function Page() {
         <section className={styles.card}>
           <div className={styles.cardInner}>
             <h2 className={styles.sectionTitle}>新しいリスト</h2>
-            <p className={styles.sectionHint}>例：「確定申告を終わらせる」「新商品の撮影をやる」みたいに、まずは1行。</p>
+            <p className={styles.sectionHint}>まずは1行でOK。あとで分解して、チェックリスト化する。</p>
 
-            <div className={styles.row}>
+            <div className={styles.row} style={{ marginTop: 10 }}>
               <input
                 className={styles.input}
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-                placeholder="やりたいことを1行で"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="例）確定申告の準備 / クローズドリリース準備 / 梱包改善"
                 onKeyDown={(e) => {
                   if (e.key === "Enter") createList();
                 }}
               />
+
               <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={createList}>
-                作る
+                ＋作成
               </button>
             </div>
 
-            {error ? <p className={styles.error}>{error}</p> : null}
+            {error && <p className={styles.error}>{error}</p>}
           </div>
         </section>
 
         <section className={styles.card}>
           <div className={styles.cardInner}>
-            <h2 className={styles.sectionTitle}>あなたのリスト</h2>
-            <p className={styles.sectionHint}>クリックで詳細へ。削除は右のボタン。</p>
+            <h2 className={styles.sectionTitle}>一覧</h2>
+            <p className={styles.sectionHint}>タップで開く。不要なら削除。</p>
 
             {sorted.length === 0 ? (
-              <p className={styles.sectionHint}>まだリストがない。上で1つ作ろう。</p>
+              <p className={styles.sectionHint} style={{ marginTop: 10 }}>
+                （まだリストがないよ。上で作ってね）
+              </p>
             ) : (
               <div className={styles.grid}>
                 {sorted.map((l) => (
                   <div key={l.id} className={styles.listCard}>
                     <div className={styles.listTitleRow}>
-                      <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={() => openList(l.id)}>
-                        開く
-                      </button>
+                      <h3 className={styles.listTitle}>{l.title}</h3>
                       <button className={`${styles.btn} ${styles.btnDanger}`} onClick={() => deleteList(l.id)}>
                         削除
                       </button>
                     </div>
 
-                    <div className={styles.listTitle}>{l.title}</div>
-                    <div className={styles.listMeta}>
-                      更新: {(l.updatedAt || l.createdAt || "").replace("T", " ").slice(0, 16)}
+                    <div className={styles.row} style={{ marginTop: 10 }}>
+                      <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={() => openList(l.id)}>
+                        開く
+                      </button>
                     </div>
+
+                    <p className={styles.listMeta}>id: {l.id}</p>
                   </div>
                 ))}
               </div>
@@ -180,7 +183,7 @@ export default function Page() {
         </section>
       </div>
 
-      {toast ? <div className={styles.toast}>{toast}</div> : null}
+      {toast && <div className={styles.toast}>{toast}</div>}
     </main>
   );
 }
