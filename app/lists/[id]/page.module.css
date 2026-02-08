@@ -1,9 +1,12 @@
 .main {
   min-height: 100vh;
   padding: 0 0 60px;
-  background: radial-gradient(1100px 520px at 30% 0%, rgba(255, 210, 160, 0.35), transparent 55%),
-    radial-gradient(900px 450px at 70% 20%, rgba(255, 192, 235, 0.28), transparent 55%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.92));
+  background:
+    radial-gradient(1200px 700px at 20% 0%, rgba(255, 179, 205, 0.35), transparent 55%),
+    radial-gradient(1200px 700px at 90% 10%, rgba(163, 216, 255, 0.35), transparent 55%),
+    radial-gradient(1200px 700px at 40% 110%, rgba(199, 255, 217, 0.25), transparent 60%),
+    linear-gradient(180deg, #fff7fb, #f7fbff);
+  color: #1d1b20;
 }
 
 .container {
@@ -14,137 +17,138 @@
 
 .card {
   margin-top: 14px;
-  border-radius: 16px;
+  border-radius: 18px;
   border: 1px solid rgba(0, 0, 0, 0.06);
   background: rgba(255, 255, 255, 0.78);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
 }
 
 .cardInner {
   padding: 16px;
 }
 
-.h2 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 900;
-  letter-spacing: 0.2px;
+.sectionTopRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .sectionTitle {
   margin: 0;
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 900;
 }
 
-.hint {
-  margin-top: 8px;
-  opacity: 0.78;
+.sectionHint {
+  margin-top: 10px;
+  opacity: 0.85;
   line-height: 1.7;
-  font-size: 12px;
 }
 
-.meta {
-  margin-top: 8px;
-  opacity: 0.65;
-  font-size: 12px;
+.textarea {
+  width: 100%;
+  margin-top: 10px;
+  border-radius: 14px;
+  padding: 12px 12px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: rgba(255, 255, 255, 0.92);
+  outline: none;
+  line-height: 1.7;
+  resize: vertical;
+}
+
+.textarea:focus {
+  border-color: rgba(0, 0, 0, 0.24);
+  box-shadow: 0 0 0 4px rgba(255, 185, 120, 0.18);
 }
 
 .row {
   display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
+  gap: 8px;
   align-items: center;
-}
-
-.rowBetween {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 10px;
   flex-wrap: wrap;
 }
 
-.input {
-  flex: 1;
-  min-width: 220px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  background: rgba(255, 255, 255, 0.8);
-  outline: none;
-}
-
-.textarea {
-  margin-top: 10px;
-  width: 100%;
-  height: 140px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  background: rgba(255, 255, 255, 0.8);
-  outline: none;
-  line-height: 1.7;
-}
-
-.textareaTall {
+.actionsRow {
   margin-top: 12px;
-  width: 100%;
-  height: 260px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  background: rgba(255, 255, 255, 0.8);
-  outline: none;
-  line-height: 1.7;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
 }
 
 .btn {
-  padding: 10px 14px;
-  border-radius: 12px;
   border: 1px solid rgba(0, 0, 0, 0.12);
-  background: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 12px;
+  padding: 10px 12px;
   font-weight: 900;
   cursor: pointer;
 }
 
+.btn:hover {
+  border-color: rgba(0, 0, 0, 0.22);
+}
+
 .btn:disabled {
-  opacity: 0.5;
+  opacity: 0.55;
   cursor: not-allowed;
 }
 
 .btnPrimary {
-  background: rgba(255, 180, 220, 0.7);
-  border: 1px solid rgba(255, 120, 190, 0.45);
-}
-
-.btnGhost {
-  background: rgba(255, 255, 255, 0.65);
+  background: rgba(255, 180, 120, 0.35);
+  border-color: rgba(255, 140, 90, 0.35);
 }
 
 .btnDanger {
-  background: rgba(255, 210, 210, 0.7);
-  border: 1px solid rgba(255, 120, 120, 0.45);
+  background: rgba(255, 120, 120, 0.18);
+  border-color: rgba(255, 120, 120, 0.28);
+}
+
+.btnGhost {
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.btnSmall {
+  padding: 8px 10px;
+  border-radius: 12px;
+}
+
+.btnIcon {
+  padding: 6px 10px;
+  border-radius: 12px;
+  font-weight: 900;
+}
+
+.error {
+  margin: 10px 0 0;
+  color: #b00020;
+  font-weight: 900;
 }
 
 .bucketGrid {
   margin-top: 12px;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(12, 1fr);
   gap: 12px;
 }
 
-@media (max-width: 860px) {
-  .bucketGrid {
-    grid-template-columns: 1fr;
-  }
+.bucketCard {
+  grid-column: span 6;
+  border-radius: 16px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: rgba(255, 255, 255, 0.7);
+  padding: 12px;
 }
 
-.bucketCard {
-  padding: 12px;
-  border-radius: 14px;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  background: rgba(255, 255, 255, 0.65);
+.bucketTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
 }
 
 .bucketTitle {
@@ -153,77 +157,80 @@
   font-weight: 900;
 }
 
-.badge {
-  font-size: 12px;
-  font-weight: 900;
-  padding: 6px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  background: rgba(255, 255, 255, 0.7);
-  opacity: 0.9;
+.items {
+  margin-top: 10px;
 }
 
-.list {
-  margin: 10px 0 0;
-  padding: 0;
-  list-style: none;
-  display: grid;
-  gap: 8px;
-}
-
-.listItem {
-  padding: 10px;
-  border-radius: 12px;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  background: rgba(255, 255, 255, 0.78);
+.itemRow {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
 }
 
-.checkRow {
+.itemRow:first-child {
+  border-top: none;
+}
+
+.itemLeft {
   display: flex;
   align-items: center;
   gap: 10px;
-  flex: 1;
+  min-width: 0;
 }
 
-.est {
-  margin-left: 8px;
-  opacity: 0.6;
-  font-size: 12px;
+.itemText {
+  font-weight: 800;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.done {
+.itemDone {
+  font-weight: 800;
+  line-height: 1.4;
   text-decoration: line-through;
-  opacity: 0.65;
+  opacity: 0.6;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.error {
-  margin-top: 10px;
-  color: crimson;
-  font-weight: 900;
+.muted {
+  margin: 10px 0 0;
+  opacity: 0.7;
 }
 
 .toast {
   position: fixed;
   left: 50%;
-  bottom: 18px;
+  bottom: 16px;
   transform: translateX(-50%);
-  padding: 10px 14px;
+  background: rgba(0, 0, 0, 0.78);
+  color: #fff;
+  padding: 10px 12px;
   border-radius: 999px;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  background: rgba(255, 255, 255, 0.85);
   font-weight: 900;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
+  z-index: 40;
+}
+
+@media (max-width: 720px) {
+  .bucketCard {
+    grid-column: span 12;
+  }
 }
 
 @media (prefers-color-scheme: dark) {
   .main {
-    background: radial-gradient(1100px 520px at 30% 0%, rgba(255, 170, 90, 0.14), transparent 55%),
-      radial-gradient(900px 450px at 70% 20%, rgba(255, 120, 190, 0.14), transparent 55%),
-      linear-gradient(180deg, rgba(18, 18, 24, 0.8), rgba(10, 10, 14, 0.92));
+    background:
+      radial-gradient(1200px 700px at 20% 0%, rgba(255, 122, 175, 0.22), transparent 55%),
+      radial-gradient(1200px 700px at 90% 10%, rgba(120, 187, 255, 0.22), transparent 55%),
+      radial-gradient(1200px 700px at 40% 110%, rgba(140, 255, 182, 0.16), transparent 60%),
+      linear-gradient(180deg, #0f0f14, #12121a);
+    color: rgba(255, 255, 255, 0.92);
   }
 
   .card {
@@ -234,36 +241,45 @@
 
   .bucketCard {
     border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(20, 20, 28, 0.6);
+    background: rgba(20, 20, 28, 0.55);
   }
 
-  .input,
-  .textarea,
-  .textareaTall {
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    background: rgba(255, 255, 255, 0.06);
+  .textarea {
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(18, 18, 24, 0.6);
     color: rgba(255, 255, 255, 0.92);
   }
 
+  .textarea:focus {
+    border-color: rgba(255, 255, 255, 0.28);
+    box-shadow: 0 0 0 4px rgba(255, 170, 90, 0.18);
+  }
+
   .btn {
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(18, 18, 24, 0.65);
     color: rgba(255, 255, 255, 0.92);
   }
 
   .btnPrimary {
-    background: rgba(255, 120, 190, 0.18);
-    border: 1px solid rgba(255, 120, 190, 0.35);
+    background: rgba(255, 170, 90, 0.16);
+    border-color: rgba(255, 170, 90, 0.22);
   }
 
   .btnDanger {
     background: rgba(255, 120, 120, 0.16);
-    border: 1px solid rgba(255, 120, 120, 0.35);
+    border-color: rgba(255, 120, 120, 0.22);
   }
 
-  .toast {
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    background: rgba(20, 20, 28, 0.75);
-    color: rgba(255, 255, 255, 0.92);
+  .error {
+    color: #ff8fa3;
+  }
+
+  .sectionHint {
+    opacity: 0.9;
+  }
+
+  .itemRow {
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
   }
 }

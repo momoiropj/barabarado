@@ -2,10 +2,8 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import styles from "./page.module.css";
-import Link from "next/link";
 import SiteHeader from "@/app/components/SiteHeader";
-
+import styles from "./page.module.css";
 
 type ListRow = {
   id: string;
@@ -25,76 +23,71 @@ function safeParseJSON<T>(raw: string | null): T | null {
   }
 }
 
-function uid(): string {
-  // crypto.randomUUID が無い環境もあるのでフォールバック
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const c: any = globalThis.crypto;
-  if (c?.randomUUID) return c.randomUUID();
-  return `id_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+function uid() {
+  return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 }
 
 function loadGuestLists(): ListRow[] {
-  const parsed = safeParseJSON<unknown>(localStorage.getItem(GUEST_LISTS_KEY));
-  if (!Array.isArray(parsed)) return [];
+  if (typeof window === "undefined") return [];
+  const parsed = safeParseJSON<ListRow[]>(localStorage.getItem(GUEST_LISTS_KEY));
+  if (!parsed || !Array.isArray(parsed)) return [];
   return parsed
-    .map((x: any) => ({
-      id: String(x?.id ?? ""),
-      title: String(x?.title ?? ""),
-      createdAt: String(x?.createdAt ?? ""),
-      updatedAt: String(x?.updatedAt ?? ""),
-    }))
-    .filter((x) => x.id && x.title);
+    .filter((x) => x && typeof x.id === "string" && typeof x.title === "string")
+    .map((x) => ({
+      id: x.id,
+      title: x.title,
+      createdAt: x.createdAt,
+      updatedAt: x.updatedAt,
+    }));
 }
 
 function saveGuestLists(lists: ListRow[]) {
-  try {
-    localStorage.setItem(GUEST_LISTS_KEY, JSON.stringify(lists));
-  } catch {}
+  if (typeof window === "undefined") return;
+  localStorage.setItem(GUEST_LISTS_KEY, JSON.stringify(lists));
 }
 
 export default function Page() {
   const router = useRouter();
 
-  const [toast, setToast] = useState<string | null>(null);
-  const showToast = (msg: string) => {
-    setToast(msg);
-    window.setTimeout(() => setToast(null), 1400);
-  };
-
   const [lists, setLists] = useState<ListRow[]>([]);
-  const [title, setTitle] = useState("");
-  const [error, setError] = useState("");
+  const [newTitle, setNewTitle] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
     setLists(loadGuestLists());
   }, []);
 
+  useEffect(() => {
+    if (!toast) return;
+    const t = window.setTimeout(() => setToast(null), 1600);
+    return () => window.clearTimeout(t);
+  }, [toast]);
+
   const sorted = useMemo(() => {
-    // updatedAt / createdAt があれば新しい順、なければタイトル順
-    return [...lists].sort((a, b) => {
+    const copy = [...lists];
+    copy.sort((a, b) => {
       const at = a.updatedAt || a.createdAt || "";
       const bt = b.updatedAt || b.createdAt || "";
-      if (at && bt) return bt.localeCompare(at);
-      return a.title.localeCompare(b.title);
+      return bt.localeCompare(at);
     });
+    return copy;
   }, [lists]);
 
   const createList = () => {
-    setError("");
-    const t = title.trim();
-    if (!t) {
-      setError("タイトルを入れてね");
+    setError(null);
+    const title = newTitle.trim();
+    if (!title) {
+      setError("タイトルを入れてね（1行でOK）");
       return;
     }
-
     const now = new Date().toISOString();
-    const row: ListRow = { id: uid(), title: t, createdAt: now, updatedAt: now };
+    const row: ListRow = { id: uid(), title, createdAt: now, updatedAt: now };
     const next = [row, ...lists];
     setLists(next);
     saveGuestLists(next);
-    setTitle("");
-    showToast("リスト作った");
-    router.push(`/lists/${row.id}`);
+    setNewTitle("");
+    setToast("リスト作った");
   };
 
   const openList = (id: string) => {
@@ -102,127 +95,83 @@ export default function Page() {
   };
 
   const deleteList = (id: string) => {
-    const ok = window.confirm("このリストを削除する？（この端末から消える）");
+    const ok = window.confirm("このリストを削除する？（チェックリスト等も消える）");
     if (!ok) return;
 
-    const next = lists.filter((l) => l.id !== id);
+    const next = lists.filter((x) => x.id !== id);
     setLists(next);
     saveGuestLists(next);
-    showToast("削除した");
+
+    try {
+      localStorage.removeItem(`bbdo_guest_list_detail_v1_${id}`);
+    } catch {
+      // ignore
+    }
+
+    setToast("削除した");
   };
 
   return (
     <main className={styles.main}>
-<SiteHeader
-  title="Lists"
-  subtitle="ゲストモード：データはこの端末のブラウザに保存。分解 → 編集 → 発行。"
-  pills={[{ text: "🧸 BarabaraDo（ゲスト）" }, { text: "✨ かわいく整形中" }]}
-  navLinks={[
-    { href: "/help", label: "📘 Help" },
-    { href: "/concept", label: "💡 Concept" },
-  ]}
-/>
+      <SiteHeader
+        title="Lists"
+        subtitle="1行で作って、分解して、チェックリスト化。最後にプロンプト発行で他AIへバトンパス。"
+        pills={[{ text: "🧸 BarabaraDo（ゲスト）" }, { text: "🔒 この端末のブラウザに保存" }]}
+        navLinks={[
+          { href: "/help", label: "Help" },
+          { href: "/concept", label: "Concept" },
+        ]}
+      />
 
       <div className={styles.container}>
-        <div className={styles.topRow}>
-          <span className={styles.pill}>🧸 BarabaraDo（ゲスト）</span>
-          <span className={styles.pill}>✨ かわいく整形中</span>
-        </div>
-
-        <h1 className={styles.pageTitle}>Lists</h1>
-
-        <div className={styles.subtitleRow}>
-          <span className={styles.pill}>🔒 データはこの端末のブラウザに保存</span>
-          <span className={styles.pill}>🧠 分解 → 編集 → 発行</span>
-        </div>
-
-<div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
-  <Link
-    href="/help"
-    style={{
-      padding: "10px 14px",
-      borderRadius: 14,
-      border: "1px solid rgba(20,18,24,0.12)",
-      background: "rgba(255,255,255,0.75)",
-      textDecoration: "none",
-      color: "inherit",
-      fontWeight: 800,
-      boxShadow: "0 10px 26px rgba(19,17,23,0.08)",
-    }}
-  >
-    📘 Help
-  </Link>
-
-  <Link
-    href="/concept"
-    style={{
-      padding: "10px 14px",
-      borderRadius: 14,
-      border: "1px solid rgba(20,18,24,0.12)",
-      background: "rgba(255,255,255,0.75)",
-      textDecoration: "none",
-      color: "inherit",
-      fontWeight: 800,
-      boxShadow: "0 10px 26px rgba(19,17,23,0.08)",
-    }}
-  >
-    💡 Concept
-  </Link>
-</div>
-
-
         <section className={styles.card}>
           <div className={styles.cardInner}>
             <h2 className={styles.sectionTitle}>新しいリスト</h2>
-            <p className={styles.sectionHint}>まずは1行でOK。あとで分解して、チェックリスト化する。</p>
+            <p className={styles.sectionHint}>例：「確定申告を終わらせる」「新商品の撮影をやる」みたいに、まずは1行。</p>
 
-            <div className={styles.row} style={{ marginTop: 10 }}>
+            <div className={styles.row}>
               <input
                 className={styles.input}
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="例）確定申告の準備 / クローズドリリース準備 / 梱包改善"
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                placeholder="やりたいことを1行で"
                 onKeyDown={(e) => {
                   if (e.key === "Enter") createList();
                 }}
               />
-
               <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={createList}>
-                ＋作成
+                作る
               </button>
             </div>
 
-            {error && <p className={styles.error}>{error}</p>}
+            {error ? <p className={styles.error}>{error}</p> : null}
           </div>
         </section>
 
         <section className={styles.card}>
           <div className={styles.cardInner}>
-            <h2 className={styles.sectionTitle}>一覧</h2>
-            <p className={styles.sectionHint}>タップで開く。不要なら削除。</p>
+            <h2 className={styles.sectionTitle}>あなたのリスト</h2>
+            <p className={styles.sectionHint}>クリックで詳細へ。削除は右のボタン。</p>
 
             {sorted.length === 0 ? (
-              <p className={styles.sectionHint} style={{ marginTop: 10 }}>
-                （まだリストがないよ。上で作ってね）
-              </p>
+              <p className={styles.sectionHint}>まだリストがない。上で1つ作ろう。</p>
             ) : (
               <div className={styles.grid}>
                 {sorted.map((l) => (
                   <div key={l.id} className={styles.listCard}>
                     <div className={styles.listTitleRow}>
-                      <h3 className={styles.listTitle}>{l.title}</h3>
+                      <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={() => openList(l.id)}>
+                        開く
+                      </button>
                       <button className={`${styles.btn} ${styles.btnDanger}`} onClick={() => deleteList(l.id)}>
                         削除
                       </button>
                     </div>
 
-                    <div className={styles.row} style={{ marginTop: 10 }}>
-                      <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={() => openList(l.id)}>
-                        開く
-                      </button>
+                    <div className={styles.listTitle}>{l.title}</div>
+                    <div className={styles.listMeta}>
+                      更新: {(l.updatedAt || l.createdAt || "").replace("T", " ").slice(0, 16)}
                     </div>
-
-                    <p className={styles.listMeta}>id: {l.id}</p>
                   </div>
                 ))}
               </div>
@@ -231,7 +180,7 @@ export default function Page() {
         </section>
       </div>
 
-      {toast && <div className={styles.toast}>{toast}</div>}
+      {toast ? <div className={styles.toast}>{toast}</div> : null}
     </main>
   );
 }

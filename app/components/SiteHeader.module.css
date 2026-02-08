@@ -1,133 +1,148 @@
-.header {
+.wrap {
   position: sticky;
   top: 0;
-  z-index: 50;
-
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-
-  background: rgba(255, 255, 255, 0.72);
+  z-index: 30;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  background: rgba(255, 255, 255, 0.68);
   border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .inner {
   max-width: 980px;
   margin: 0 auto;
-  padding: 14px 16px 12px;
-}
-
-.topRow {
+  padding: 14px 16px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
+  gap: 14px;
 }
 
-.brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-
-  text-decoration: none;
-  color: inherit;
-  font-weight: 900;
-  letter-spacing: 0.2px;
-
-  padding: 8px 10px;
-  border-radius: 14px;
-  background: rgba(0, 0, 0, 0.04);
-}
-
-.nav {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.navLink {
-  text-decoration: none;
-  color: inherit;
-  font-weight: 800;
-  font-size: 13px;
-
-  padding: 8px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  background: rgba(255, 255, 255, 0.7);
-}
-
-.navLink:hover {
-  transform: translateY(-1px);
+.left {
+  flex: 1;
+  min-width: 0;
 }
 
 .titleRow {
-  margin-top: 10px;
-
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
+  align-items: center;
   gap: 10px;
   flex-wrap: wrap;
 }
 
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: rgba(255, 255, 255, 0.78);
+  text-decoration: none;
+  font-weight: 900;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.backLink:hover {
+  border-color: rgba(0, 0, 0, 0.22);
+}
+
 .title {
   margin: 0;
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 900;
   letter-spacing: 0.2px;
 }
 
+.subtitle {
+  margin: 8px 0 0;
+  opacity: 0.82;
+  line-height: 1.6;
+  font-size: 14px;
+}
+
 .pills {
+  margin-top: 10px;
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
 }
 
 .pill {
+  border-radius: 999px;
+  padding: 6px 10px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: rgba(255, 255, 255, 0.7);
   font-size: 12px;
   font-weight: 800;
-
-  padding: 6px 10px;
-  border-radius: 999px;
-
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  background: rgba(255, 255, 255, 0.75);
 }
 
-.subtitle {
-  margin: 8px 0 0;
-  opacity: 0.8;
-  line-height: 1.6;
+.nav {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.navLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 9px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 0.72);
+  text-decoration: none;
+  font-weight: 900;
   font-size: 13px;
+  white-space: nowrap;
 }
 
-@media (max-width: 520px) {
+.navLink:hover {
+  border-color: rgba(0, 0, 0, 0.22);
+}
+
+@media (max-width: 720px) {
   .inner {
-    padding: 12px 12px 10px;
+    flex-direction: column;
+    align-items: stretch;
   }
-  .title {
-    font-size: 18px;
+  .nav {
+    justify-content: flex-start;
   }
 }
 
 @media (prefers-color-scheme: dark) {
-  .header {
-    background: rgba(16, 16, 22, 0.7);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  .wrap {
+    background: rgba(12, 12, 18, 0.66);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   }
 
-  .brand {
-    background: rgba(255, 255, 255, 0.08);
+  .title {
+    color: rgba(255, 255, 255, 0.92);
   }
 
-  .navLink {
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    background: rgba(255, 255, 255, 0.06);
+  .subtitle {
+    color: rgba(255, 255, 255, 0.78);
   }
 
   .pill {
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(18, 18, 24, 0.6);
+    color: rgba(255, 255, 255, 0.88);
+  }
+
+  .backLink,
+  .navLink {
     border: 1px solid rgba(255, 255, 255, 0.14);
-    background: rgba(255, 255, 255, 0.06);
+    background: rgba(18, 18, 24, 0.62);
+    color: rgba(255, 255, 255, 0.92);
+  }
+
+  .backLink:hover,
+  .navLink:hover {
+    border-color: rgba(255, 255, 255, 0.26);
   }
 }

@@ -5,56 +5,47 @@ export const metadata = {
   title: "Concept | BarabaraDo",
 };
 
-export default function ConceptPage() {
+export default function Page() {
   return (
     <>
-      <SiteHeader />
+      <SiteHeader
+        title="Concept"
+        subtitle="BarabaraDoは「分解 → 編集 → 発行」で、行動を始めるまでの摩擦を消すためのツール。"
+        pills={[{ text: "🧸 BarabaraDo（ゲスト）" }, { text: "🧠 分解 → 編集 → 発行" }]}
+        navLinks={[
+          { href: "/lists", label: "Lists" },
+          { href: "/concept", label: "Concept" },
+          { href: "/help", label: "Help" },
+        ]}
+      />
+
       <main className={styles.main}>
         <div className={styles.container}>
           <h1 className={styles.title}>Concept</h1>
           <p className={styles.lead}>
-            BarabaraDoは「やること」を増やすアプリじゃない。
-            <b>やる気が消える前に、最初の一歩を確定させる</b>ためのアプリ。
+            やる気があっても、タスクがデカすぎたり曖昧だったりすると人類は固まる。BarabaraDoは、その「固まり」をほどくための仕組み。
           </p>
 
           <section className={styles.card}>
-            <h2 className={styles.h2}>BarabaraDoの思想</h2>
-            <ul className={styles.ul}>
-              <li>
-                <b>心理 → 設計 → 実行</b>の順で分解する（いきなり手順に飛ばない）
-              </li>
-              <li>
-                不明点があっても止まらない（仮定を置いて前に進む）
-              </li>
-              <li>
-                “完了条件” を決める（ゴールが曖昧だと永遠に終わらない）
-              </li>
-              <li>
-                15分のNext Actionを3つ出して、今日を勝ちに行く
-              </li>
-            </ul>
-          </section>
-
-          <section className={styles.card}>
-            <h2 className={styles.h2}>バトンパス（プロンプト発行）とは？</h2>
+            <h2 className={styles.h2}>BarabaraDoがやること</h2>
             <p className={styles.p}>
-              BarabaraDo内で作ったチェックリストや状況を、あなたが普段使ってるAIに渡すための「引き継ぎ文」。
-              ここが強いと、AIがあなた向けにカスタマイズしたり、「次これやろう」を提案しやすくなる。
+              入力したToDoを、まず「気持ち / 現状 / なぜ（Why）」で足場を作ってから、完了条件とチェックリストに落とす。
+              その上で「他のAIに渡して伴走を続けるためのプロンプト」を発行する。
             </p>
-            <div className={styles.note}>
-              目標：あなたのAIが<br />
-              「OK，BarabaraDoからバトンパスされたよ！ここからは私がサポートするよ」<br />
-              みたいに、自然に伴走を始める状態。
-            </div>
           </section>
 
           <section className={styles.card}>
-            <h2 className={styles.h2}>安全・注意</h2>
+            <h2 className={styles.h2}>プロンプト発行の思想</h2>
             <ul className={styles.ul}>
-              <li>AIの出力は提案。最終判断はあなた</li>
-              <li>個人情報や機密情報は貼らないのが基本</li>
-              <li>プロンプトは“コピペで動く”ことを最優先に設計</li>
+              <li>発行されたプロンプトはそのままコピペでAIに渡せる（Markdown）</li>
+              <li>チェックリスト付きの場合は「以下は現時点でチェックリストになります」を入れて文脈を渡す</li>
+              <li>受け取ったAIが「バトンパスされた」前提で、次の一手を提案しやすい形にする</li>
             </ul>
+
+            <div className={styles.note}>
+              目的：BarabaraDoが作るのは「完璧な計画」じゃなくて、
+              <b>“次の5分を始められる形”</b>。
+            </div>
           </section>
         </div>
       </main>

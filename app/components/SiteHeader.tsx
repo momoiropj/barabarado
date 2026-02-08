@@ -1,51 +1,63 @@
+"use client";
+
 import Link from "next/link";
 import styles from "./SiteHeader.module.css";
 
-type Pill = { text: string };
-type NavLink = { href: string; label: string };
+export type Pill = { text: string };
+export type NavLink = { href: string; label: string };
 
 export type SiteHeaderProps = {
   title: string;
   subtitle?: string;
   pills?: Pill[];
   navLinks?: NavLink[];
+  backHref?: string;
+  backLabel?: string;
 };
 
-export default function SiteHeader({ title, subtitle, pills = [], navLinks = [] }: SiteHeaderProps) {
+export default function SiteHeader({
+  title,
+  subtitle,
+  pills = [],
+  navLinks = [],
+  backHref,
+  backLabel = "← Lists",
+}: SiteHeaderProps) {
   return (
-    <header className={styles.header}>
+    <header className={styles.wrap}>
       <div className={styles.inner}>
-        <div className={styles.topRow}>
-          <Link href="/lists" className={styles.brand}>
-            🧸 BarabaraDo
-          </Link>
+        <div className={styles.left}>
+          <div className={styles.titleRow}>
+            {backHref ? (
+              <Link className={styles.backLink} href={backHref}>
+                {backLabel}
+              </Link>
+            ) : null}
+            <h1 className={styles.title}>{title}</h1>
+          </div>
 
-          {navLinks.length > 0 && (
-            <nav className={styles.nav} aria-label="Primary">
-              {navLinks.map((n) => (
-                <Link key={n.href} href={n.href} className={styles.navLink}>
-                  {n.label}
-                </Link>
-              ))}
-            </nav>
-          )}
-        </div>
+          {subtitle ? <p className={styles.subtitle}>{subtitle}</p> : null}
 
-        <div className={styles.titleRow}>
-          <h1 className={styles.title}>{title}</h1>
-
-          {pills.length > 0 && (
+          {pills.length ? (
             <div className={styles.pills}>
               {pills.map((p, i) => (
-                <span key={`${p.text}_${i}`} className={styles.pill}>
+                <span key={i} className={styles.pill}>
                   {p.text}
                 </span>
               ))}
             </div>
-          )}
+          ) : null}
         </div>
 
-        {subtitle ? <p className={styles.subtitle}>{subtitle}</p> : null}
+        {navLinks.length ? (
+          <nav className={styles.nav} aria-label="Site navigation">
+            {navLinks.map((l) => (
+              <Link key={l.href} className={styles.navLink} href={l.href}>
+                {l.label}
+              </Link>
+            ))}
+          </nav>
+        ) : null}
       </div>
     </header>
   );
