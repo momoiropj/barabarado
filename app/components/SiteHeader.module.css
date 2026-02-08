@@ -1,173 +1,180 @@
 .header {
   position: sticky;
   top: 0;
-  z-index: 50;
+  z-index: 40;
 
-  /* 白ベタ禁止：うっすらグラデ＋透過で下の世界観に馴染ませる */
-  background: radial-gradient(1100px 520px at 30% 0%, rgba(255, 210, 160, 0.35), transparent 55%),
-    radial-gradient(900px 450px at 70% 20%, rgba(255, 192, 235, 0.28), transparent 55%),
-    rgba(255, 255, 255, 0.72);
-
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  /* Listsページの色味に寄せる */
+  background:
+    radial-gradient(1200px 700px at 20% 0%, rgba(255, 179, 205, 0.30), transparent 55%),
+    radial-gradient(1200px 700px at 90% 10%, rgba(163, 216, 255, 0.30), transparent 55%),
+    radial-gradient(1200px 700px at 40% 110%, rgba(199, 255, 217, 0.20), transparent 60%),
+    linear-gradient(180deg, rgba(255, 247, 251, 0.86), rgba(247, 251, 255, 0.86));
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid rgba(20, 18, 24, 0.10);
+  color: #1d1b20;
 }
 
 .inner {
-  max-width: 980px;
+  max-width: 920px;
   margin: 0 auto;
-  padding: 12px 16px;
-
-  display: grid;
-  grid-template-columns: 1fr 2fr 1fr;
-  gap: 12px;
-  align-items: center;
+  padding: 12px 16px 12px;
 }
 
-.left {
+.topRow {
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .brand {
-  font-weight: 900;
-  letter-spacing: 0.2px;
   text-decoration: none;
-  color: rgba(20, 20, 28, 0.92);
-}
+  color: inherit;
+  font-weight: 950;
+  letter-spacing: -0.02em;
+  font-size: 14px;
 
-.backLink {
-  text-decoration: none;
-  color: rgba(20, 20, 28, 0.88);
-  font-weight: 800;
   padding: 8px 10px;
-  border-radius: 12px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 999px;
+  border: 1px solid rgba(20, 18, 24, 0.10);
   background: rgba(255, 255, 255, 0.55);
 }
 
-.backLink:hover {
-  background: rgba(255, 255, 255, 0.75);
-}
-
-.center {
-  text-align: center;
-  min-width: 0;
-}
-
-.title {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 900;
-  color: rgba(20, 20, 28, 0.92);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.titlePlaceholder {
-  height: 22px;
-}
-
-.subtitle {
-  margin: 4px 0 0;
-  font-size: 12px;
-  line-height: 1.5;
-  color: rgba(20, 20, 28, 0.72);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.right {
+.rightRow {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
-}
-
-.status {
-  text-align: right;
-  font-size: 11px;
-  line-height: 1.35;
-  color: rgba(20, 20, 28, 0.72);
-}
-
-.statusLine {
-  white-space: nowrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .nav {
   display: flex;
+  align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .navLink {
   text-decoration: none;
-  font-weight: 800;
+  color: inherit;
   font-size: 12px;
-  color: rgba(20, 20, 28, 0.88);
+  font-weight: 850;
 
-  padding: 7px 10px;
+  padding: 8px 10px;
   border-radius: 999px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(20, 18, 24, 0.10);
+  background: rgba(255, 255, 255, 0.50);
+  transition: transform 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
 }
 
 .navLink:hover {
-  background: rgba(255, 255, 255, 0.78);
+  transform: translateY(-1px);
+  box-shadow: 0 12px 30px rgba(19, 17, 23, 0.10);
+}
+
+.navLinkActive {
+  border-color: rgba(126, 87, 194, 0.25);
+  background: linear-gradient(135deg, rgba(255, 165, 196, 0.42), rgba(163, 216, 255, 0.42));
+}
+
+.pills {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(20, 18, 24, 0.10);
+  background: rgba(255, 255, 255, 0.60);
+  backdrop-filter: blur(10px);
+  font-size: 12px;
+  opacity: 0.95;
+  white-space: nowrap;
+}
+
+.titleRow {
+  margin-top: 10px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.backLink {
+  text-decoration: none;
+  color: inherit;
+  font-size: 12px;
+  font-weight: 850;
+  opacity: 0.78;
+
+  padding: 8px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(20, 18, 24, 0.10);
+  background: rgba(255, 255, 255, 0.50);
+}
+
+.titleBlock {
+  flex: 1 1 520px;
+  min-width: 240px;
+}
+
+.title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 950;
+  letter-spacing: -0.02em;
+}
+
+.subtitle {
+  margin: 6px 0 0;
+  font-size: 12px;
+  opacity: 0.78;
+  line-height: 1.6;
+}
+
+@media (max-width: 520px) {
+  .inner {
+    padding: 10px 12px 12px;
+  }
+  .title {
+    font-size: 18px;
+  }
 }
 
 @media (prefers-color-scheme: dark) {
   .header {
-    background: radial-gradient(1100px 520px at 30% 0%, rgba(255, 170, 90, 0.14), transparent 55%),
-      radial-gradient(900px 450px at 70% 20%, rgba(255, 120, 190, 0.14), transparent 55%),
-      rgba(14, 14, 18, 0.72);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    background:
+      radial-gradient(1200px 700px at 20% 0%, rgba(255, 122, 175, 0.18), transparent 55%),
+      radial-gradient(1200px 700px at 90% 10%, rgba(120, 187, 255, 0.18), transparent 55%),
+      radial-gradient(1200px 700px at 40% 110%, rgba(140, 255, 182, 0.12), transparent 60%),
+      linear-gradient(180deg, rgba(15, 15, 20, 0.80), rgba(18, 18, 26, 0.80));
+    color: rgba(255, 255, 255, 0.92);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.10);
   }
 
   .brand,
-  .title,
-  .backLink,
-  .navLink {
-    color: rgba(255, 255, 255, 0.92);
+  .navLink,
+  .pill,
+  .backLink {
+    border-color: rgba(255, 255, 255, 0.12);
+    background: rgba(25, 25, 34, 0.62);
   }
 
-  .subtitle,
-  .status {
-    color: rgba(255, 255, 255, 0.70);
+  .navLinkActive {
+    border-color: rgba(186, 155, 255, 0.35);
+    background: linear-gradient(135deg, rgba(255, 165, 196, 0.22), rgba(163, 216, 255, 0.18));
   }
 
-  .backLink,
-  .navLink {
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    background: rgba(20, 20, 28, 0.55);
-  }
-
-  .backLink:hover,
-  .navLink:hover {
-    background: rgba(20, 20, 28, 0.72);
-  }
-}
-
-@media (max-width: 720px) {
-  .inner {
-    grid-template-columns: 1fr;
-    gap: 10px;
-    text-align: left;
-  }
-
-  .center {
-    text-align: left;
-  }
-
-  .right {
-    align-items: flex-start;
-  }
-
-  .status {
-    text-align: left;
+  .subtitle {
+    opacity: 0.85;
   }
 }
