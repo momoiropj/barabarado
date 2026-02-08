@@ -1,0 +1,244 @@
+.main {
+  min-height: 100vh;
+  padding: 22px;
+  background: radial-gradient(1000px 600px at 20% 10%, rgba(255, 200, 240, 0.35), transparent 55%),
+    radial-gradient(900px 600px at 80% 20%, rgba(190, 230, 255, 0.35), transparent 55%),
+    radial-gradient(900px 700px at 50% 90%, rgba(210, 255, 220, 0.28), transparent 55%),
+    #fafafa;
+}
+
+.container {
+  max-width: 920px;
+  margin: 0 auto;
+}
+
+.hint {
+  margin-top: 10px;
+  opacity: 0.8;
+  font-size: 12px;
+}
+
+.card {
+  margin-top: 14px;
+  border: 1px solid rgba(20, 18, 24, 0.1);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.75);
+  box-shadow: 0 18px 40px rgba(19, 17, 23, 0.08);
+  backdrop-filter: blur(10px);
+}
+
+.cardInner {
+  padding: 16px;
+}
+
+.subCard {
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid rgba(20, 18, 24, 0.08);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.65);
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.listTitle {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.sectionHint {
+  margin-top: 6px;
+  opacity: 0.75;
+  font-size: 12px;
+}
+
+.meta {
+  margin-top: 8px;
+  opacity: 0.65;
+  font-size: 12px;
+}
+
+.input {
+  width: 100%;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(20, 18, 24, 0.14);
+  background: rgba(255, 255, 255, 0.8);
+  outline: none;
+}
+
+.textarea {
+  margin-top: 8px;
+  width: 100%;
+  height: 140px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(20, 18, 24, 0.14);
+  background: rgba(255, 255, 255, 0.8);
+  outline: none;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.actions {
+  margin-top: 10px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.btn,
+.btnPrimary,
+.btnDanger {
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(20, 18, 24, 0.14);
+  background: rgba(255, 255, 255, 0.75);
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 12px 30px rgba(19, 17, 23, 0.08);
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.btn:hover,
+.btnPrimary:hover,
+.btnDanger:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 18px 40px rgba(19, 17, 23, 0.1);
+}
+
+.btnPrimary {
+  background: rgba(255, 230, 250, 0.9);
+}
+
+.btnDanger {
+  background: rgba(255, 220, 220, 0.85);
+}
+
+.error {
+  margin-top: 10px;
+  color: crimson;
+  font-weight: 800;
+}
+
+.bucketGrid {
+  margin-top: 12px;
+  display: grid;
+  gap: 12px;
+}
+
+.bucketCard {
+  padding: 12px;
+  border: 1px solid rgba(20, 18, 24, 0.08);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.65);
+}
+
+.bucketHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.bucketTitle {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.addRow {
+  margin-top: 10px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.items {
+  margin-top: 10px;
+  padding-left: 0;
+  list-style: none;
+}
+
+.itemRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid rgba(20, 18, 24, 0.06);
+  border-radius: 14px;
+  margin-bottom: 8px;
+  background: rgba(255, 255, 255, 0.75);
+}
+
+.itemLabel {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex: 1;
+}
+
+.itemMeta {
+  margin-left: 8px;
+  opacity: 0.65;
+  font-size: 12px;
+}
+
+.toast {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(20, 18, 24, 0.12);
+  background: rgba(255, 255, 255, 0.86);
+  font-weight: 900;
+  box-shadow: 0 18px 40px rgba(19, 17, 23, 0.14);
+}
+
+/* ダークモード */
+@media (prefers-color-scheme: dark) {
+  .main {
+    background: radial-gradient(900px 600px at 20% 10%, rgba(255, 120, 210, 0.18), transparent 55%),
+      radial-gradient(900px 600px at 80% 20%, rgba(120, 200, 255, 0.18), transparent 55%),
+      radial-gradient(900px 700px at 50% 90%, rgba(130, 255, 160, 0.12), transparent 55%),
+      #0e0c12;
+  }
+
+  .card,
+  .subCard,
+  .bucketCard {
+    background: rgba(18, 16, 22, 0.65);
+    border-color: rgba(255, 255, 255, 0.12);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+  }
+
+  .input,
+  .textarea,
+  .btn,
+  .btnPrimary,
+  .btnDanger {
+    background: rgba(30, 28, 36, 0.7);
+    border-color: rgba(255, 255, 255, 0.14);
+    color: rgba(255, 255, 255, 0.92);
+  }
+
+  .toast {
+    background: rgba(30, 28, 36, 0.85);
+    border-color: rgba(255, 255, 255, 0.14);
+    color: rgba(255, 255, 255, 0.92);
+  }
+}
