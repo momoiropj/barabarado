@@ -1,3 +1,4 @@
+/* app/lists/[id]/page.module.css */
 .main {
   min-height: 100vh;
   padding: 0 0 60px;
@@ -146,6 +147,16 @@
   line-height: 1.75;
 }
 
+.infoNote {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: rgba(255, 255, 255, 0.7);
+  font-weight: 900;
+  opacity: 0.85;
+}
+
 .textarea {
   width: 100%;
   margin-top: 12px;
@@ -186,7 +197,8 @@
 .btnPrimary,
 .btnGhost,
 .btnDanger,
-.btnDisabled {
+.btnDisabled,
+.btnWarn {
   border-radius: 12px;
   padding: 10px 12px;
   font-weight: 900;
@@ -215,9 +227,17 @@
   opacity: 0.75;
 }
 
+/* ✅ 「もう次がない」用（クリックしても“案内”できるよう cursor は pointer のまま） */
+.btnWarn {
+  background: rgba(200, 200, 210, 0.25);
+  border-color: rgba(0, 0, 0, 0.10);
+  opacity: 0.9;
+}
+
 .btnPrimary:hover,
 .btnGhost:hover,
-.btnDanger:hover {
+.btnDanger:hover,
+.btnWarn:hover {
   border-color: rgba(0, 0, 0, 0.22);
 }
 
@@ -313,7 +333,8 @@
 
 .btnMiniPrimary,
 .btnMiniGhost,
-.btnMiniLater {
+.btnMiniLater,
+.btnMiniRevive {
   border-radius: 999px;
   padding: 8px 10px;
   font-size: 12px;
@@ -336,12 +357,19 @@
   border-color: rgba(150, 120, 255, 0.25);
 }
 
+.btnMiniRevive {
+  background: rgba(199, 255, 217, 0.40);
+  border-color: rgba(120, 220, 160, 0.30);
+}
+
 .btnMiniPrimary:hover,
 .btnMiniGhost:hover,
-.btnMiniLater:hover {
+.btnMiniLater:hover,
+.btnMiniRevive:hover {
   border-color: rgba(0, 0, 0, 0.22);
 }
 
+/* ゴール */
 .goalBox {
   margin-top: 10px;
   padding: 12px;
@@ -368,10 +396,19 @@
   flex: 1;
 }
 
+/* KPI */
 .kpiRow {
   margin-top: 10px;
   display: grid;
-  grid-template-columns: 90px 90px 90px 1fr;
+  grid-template-columns: 1fr 1fr 1fr 1.2fr;
+  gap: 10px;
+  align-items: center;
+}
+
+.overallRow {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1.2fr;
   gap: 10px;
   align-items: center;
 }
@@ -417,6 +454,85 @@
   opacity: 0.75;
 }
 
+/* 保留ボード */
+.parkingBox {
+  margin-top: 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: rgba(255, 255, 255, 0.62);
+  padding: 12px;
+}
+
+.parkingHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.parkingTitle {
+  font-weight: 900;
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.parkingMeta {
+  opacity: 0.7;
+  font-weight: 900;
+  font-size: 12px;
+}
+
+.parkingBody {
+  margin-top: 10px;
+}
+
+.parkingSection {
+  margin-top: 10px;
+}
+
+.parkingSectionTitle {
+  font-weight: 900;
+  opacity: 0.85;
+  margin-bottom: 6px;
+}
+
+.parkingList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.parkingItem {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  border-radius: 12px;
+  padding: 8px 10px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.parkingResolved {
+  opacity: 0.75;
+}
+
+.parkingText {
+  font-weight: 900;
+  opacity: 0.9;
+}
+
+.parkingRight {
+  margin-left: auto;
+  font-weight: 900;
+  opacity: 0.65;
+  font-size: 12px;
+}
+
+/* トグル */
 .toggleRow {
   display: flex;
   gap: 14px;
@@ -473,11 +589,15 @@
 }
 
 @media (max-width: 720px) {
-  .kpiRow {
-    grid-template-columns: 1fr 1fr 1fr;
+  .kpiRow,
+  .overallRow {
+    grid-template-columns: 1fr 1fr;
   }
   .kpiWide {
     grid-column: 1 / -1;
+  }
+  .parkingRight {
+    margin-left: 0;
   }
 }
 
@@ -504,7 +624,10 @@
   .statusPill,
   .goalBox,
   .kpi,
-  .kpiWide {
+  .kpiWide,
+  .parkingBox,
+  .parkingItem,
+  .infoNote {
     background: rgba(20, 20, 28, 0.62);
     border-color: rgba(255, 255, 255, 0.14);
   }
@@ -518,9 +641,15 @@
     border-color: rgba(255, 180, 120, 0.26);
   }
 
+  .btnWarn {
+    background: rgba(60, 60, 80, 0.28);
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
   .btnMiniPrimary,
   .btnMiniGhost,
-  .btnMiniLater {
+  .btnMiniLater,
+  .btnMiniRevive {
     background: rgba(20, 20, 28, 0.62);
     border-color: rgba(255, 255, 255, 0.14);
   }
