@@ -3,6 +3,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import styles from "./page.module.css";
+import Link from "next/link";
+import SiteHeader from "@/app/components/SiteHeader";
+
 
 type ListRow = {
   id: string;
@@ -110,6 +113,16 @@ export default function Page() {
 
   return (
     <main className={styles.main}>
+<SiteHeader
+  title="Lists"
+  subtitle="ゲストモード：データはこの端末のブラウザに保存。分解 → 編集 → 発行。"
+  pills={[{ text: "🧸 BarabaraDo（ゲスト）" }, { text: "✨ かわいく整形中" }]}
+  navLinks={[
+    { href: "/help", label: "📘 Help" },
+    { href: "/concept", label: "💡 Concept" },
+  ]}
+/>
+
       <div className={styles.container}>
         <div className={styles.topRow}>
           <span className={styles.pill}>🧸 BarabaraDo（ゲスト）</span>
@@ -122,6 +135,41 @@ export default function Page() {
           <span className={styles.pill}>🔒 データはこの端末のブラウザに保存</span>
           <span className={styles.pill}>🧠 分解 → 編集 → 発行</span>
         </div>
+
+<div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
+  <Link
+    href="/help"
+    style={{
+      padding: "10px 14px",
+      borderRadius: 14,
+      border: "1px solid rgba(20,18,24,0.12)",
+      background: "rgba(255,255,255,0.75)",
+      textDecoration: "none",
+      color: "inherit",
+      fontWeight: 800,
+      boxShadow: "0 10px 26px rgba(19,17,23,0.08)",
+    }}
+  >
+    📘 Help
+  </Link>
+
+  <Link
+    href="/concept"
+    style={{
+      padding: "10px 14px",
+      borderRadius: 14,
+      border: "1px solid rgba(20,18,24,0.12)",
+      background: "rgba(255,255,255,0.75)",
+      textDecoration: "none",
+      color: "inherit",
+      fontWeight: 800,
+      boxShadow: "0 10px 26px rgba(19,17,23,0.08)",
+    }}
+  >
+    💡 Concept
+  </Link>
+</div>
+
 
         <section className={styles.card}>
           <div className={styles.cardInner}>

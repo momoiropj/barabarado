@@ -1,38 +1,23 @@
 ﻿import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const COOKIE_NAME = "bbdo_gate";
+const COOKIE_NAME = "bbdo_gate"; // 既存のままでOK（例）
 
 export function middleware(req: NextRequest) {
-  const { pathname } = req.nextUrl;
+  const pathname = req.nextUrl.pathname;
 
-  // ここは常に通す（静的ファイルなど）
-  if (
-    pathname.startsWith("/_next") ||
-    pathname.startsWith("/favicon.ico")
-  ) {
-    return NextResponse.next();
-  }
+  // ✅ APIは認証対象から外す（これが今回の本命）
+  if (pathname.startsWith("/api/")) return NextResponse.next();
 
-  // ゲート画面と、ゲート解除APIは通す
-  if (pathname.startsWith("/gate")) return NextResponse.next();
-  if (pathname === "/api/gate") return NextResponse.next();
+  // ✅ Next.js内部も除外（安定化）
+  if (pathname.startsWith("/_next/")) return NextResponse.next();
+  if (pathname === "/favicon.ico") return NextResponse.next();
 
-  const ok = req.cookies.get(COOKIE_NAME)?.value === "1";
-  if (ok) return NextResponse.next();
-
-  // API は redirect じゃなく 401 を返す（fetchが壊れにくい）
-  if (pathname.startsWith("/api")) {
-    return NextResponse.json({ error: "Unauthorized (gate required)" }, { status: 401 });
-  }
-
-  // ページは /gate に飛ばす
-  const url = req.nextUrl.clone();
-  url.pathname = "/gate";
-  url.searchParams.set("next", pathname === "/login" ? "/lists" : pathname);
-  return NextResponse.redirect(url);
+  // ↓↓↓ ここから下に、あなたの既存の認証/パスコードロジックをそのまま置く ↓↓↓
+  // 例）cookieが無いなら /passcode に飛ばす…等
+  return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
 };

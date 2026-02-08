@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import styles from "./page.module.css";
+import SiteHeader from "@/app/components/SiteHeader";
+
 
 export const metadata: Metadata = {
   title: "Concept | BarabaraDo",
@@ -9,6 +11,16 @@ export const metadata: Metadata = {
 export default function ConceptPage() {
   return (
     <main className={styles.main}>
+<SiteHeader
+  title="Concept"
+  subtitle="分解 → 編集 → 発行 → 外部AIへバトンパス"
+  pills={[{ text: "💡 Concept" }, { text: "🧸 BarabaraDo" }]}
+  navLinks={[
+    { href: "/lists", label: "← Lists" },
+    { href: "/help", label: "📘 Help" },
+  ]}
+/>
+
       <div className={styles.container}>
         <header className={styles.header}>
           <div className={styles.pills}>

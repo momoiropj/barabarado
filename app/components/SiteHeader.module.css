@@ -1,0 +1,79 @@
+.header {
+  padding: 18px;
+  border: 1px solid rgba(20, 18, 24, 0.1);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.75);
+  box-shadow: 0 18px 40px rgba(19, 17, 23, 0.08);
+  backdrop-filter: blur(10px);
+}
+
+.pills {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pill {
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(20, 18, 24, 0.12);
+  background: rgba(255, 255, 255, 0.7);
+  font-weight: 800;
+  font-size: 12px;
+}
+
+.title {
+  margin: 12px 0 6px 0;
+  font-size: 30px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+
+.subtitle {
+  margin: 0;
+  opacity: 0.82;
+  line-height: 1.55;
+}
+
+.nav {
+  margin-top: 14px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.navBtn {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(20, 18, 24, 0.12);
+  background: rgba(255, 255, 255, 0.75);
+  text-decoration: none;
+  color: inherit;
+  font-weight: 900;
+  box-shadow: 0 12px 30px rgba(19, 17, 23, 0.08);
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.navBtn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 18px 40px rgba(19, 17, 23, 0.1);
+}
+
+/* ダークモードでも読めるように */
+@media (prefers-color-scheme: dark) {
+  .header {
+    background: rgba(18, 16, 22, 0.65);
+    border-color: rgba(255, 255, 255, 0.12);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+  }
+  .pill {
+    background: rgba(30, 28, 36, 0.7);
+    border-color: rgba(255, 255, 255, 0.14);
+  }
+  .navBtn {
+    background: rgba(30, 28, 36, 0.7);
+    border-color: rgba(255, 255, 255, 0.14);
+  }
+}

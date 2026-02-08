@@ -3,6 +3,7 @@
 import Link from "next/link";
 import styles from "./SiteHeader.module.css";
 
+
 type Pill = { text: string };
 type NavLink = { href: string; label: string };
 

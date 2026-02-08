@@ -1,0 +1,151 @@
+.main {
+  min-height: 100vh;
+  padding: 28px 18px;
+  background: radial-gradient(1200px 600px at 20% -10%, rgba(255, 210, 245, 0.55), transparent 60%),
+    radial-gradient(1000px 700px at 90% 10%, rgba(200, 240, 255, 0.55), transparent 60%),
+    linear-gradient(180deg, rgba(250, 250, 255, 0.9), rgba(255, 255, 255, 1));
+  color: #141218;
+}
+
+.container {
+  max-width: 860px;
+  margin: 0 auto;
+}
+
+.header {
+  padding: 18px;
+  border: 1px solid rgba(20, 18, 24, 0.1);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.75);
+  box-shadow: 0 18px 40px rgba(19, 17, 23, 0.08);
+  backdrop-filter: blur(10px);
+}
+
+.pills {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pill {
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(20, 18, 24, 0.12);
+  background: rgba(255, 255, 255, 0.7);
+  font-weight: 800;
+  font-size: 12px;
+}
+
+.title {
+  margin: 12px 0 6px 0;
+  font-size: 34px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+
+.subtitle {
+  margin: 0;
+  opacity: 0.78;
+  line-height: 1.55;
+}
+
+.nav {
+  margin-top: 14px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.navBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(20, 18, 24, 0.12);
+  background: rgba(255, 255, 255, 0.75);
+  text-decoration: none;
+  color: inherit;
+  font-weight: 900;
+  box-shadow: 0 12px 30px rgba(19, 17, 23, 0.08);
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.navBtn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 18px 40px rgba(19, 17, 23, 0.1);
+}
+
+.card {
+  margin-top: 14px;
+  padding: 16px;
+  border: 1px solid rgba(20, 18, 24, 0.1);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 18px 40px rgba(19, 17, 23, 0.08);
+  backdrop-filter: blur(10px);
+}
+
+.h2 {
+  margin: 0 0 10px 0;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.ol {
+  margin: 0;
+  padding-left: 20px;
+  line-height: 1.65;
+}
+
+.ul {
+  margin: 0;
+  padding-left: 18px;
+  line-height: 1.65;
+}
+
+.note {
+  margin-top: 6px;
+  opacity: 0.75;
+  font-size: 12px;
+}
+
+.callout {
+  margin-top: 12px;
+  border-radius: 16px;
+  border: 1px dashed rgba(20, 18, 24, 0.18);
+  background: rgba(255, 240, 250, 0.55);
+  padding: 12px;
+}
+
+.calloutTitle {
+  font-weight: 900;
+  margin-bottom: 6px;
+}
+
+.calloutText {
+  opacity: 0.85;
+  line-height: 1.6;
+  font-size: 13px;
+}
+
+.qa {
+  display: grid;
+  gap: 10px;
+}
+
+.q {
+  font-weight: 900;
+}
+
+.a {
+  opacity: 0.82;
+  line-height: 1.6;
+  font-size: 13px;
+}
+
+.footer {
+  margin-top: 14px;
+  display: flex;
+  justify-content: flex-start;
+}
