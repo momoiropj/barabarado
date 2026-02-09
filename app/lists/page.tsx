@@ -157,7 +157,7 @@ export default function Page() {
               className={styles.input}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="例）クローズドリリース準備 / 確定申告 / 梱包改善"
+              placeholder="タイトルを入れてね。 例）確定申告 / 部屋の片付け / 引っ越し準備"
               onKeyDown={(e) => {
                 if (e.key === "Enter") createList();
               }}

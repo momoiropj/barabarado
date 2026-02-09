@@ -173,6 +173,33 @@
   box-shadow: 0 0 0 4px rgba(255, 185, 120, 0.18);
 }
 
+.textInput {
+  width: 260px;
+  max-width: 100%;
+  border-radius: 14px;
+  padding: 10px 12px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: rgba(255, 255, 255, 0.92);
+  outline: none;
+}
+
+.textInput:focus {
+  border-color: rgba(0, 0, 0, 0.24);
+  box-shadow: 0 0 0 4px rgba(255, 185, 120, 0.18);
+}
+
+.manualAdd {
+  margin-top: 10px;
+}
+
+@media (max-width: 640px) {
+  .textInput {
+    width: 100%;
+  }
+}
+
+
+
 .pre {
   margin-top: 12px;
   padding: 12px;
@@ -614,6 +641,7 @@
   .navLink,
   .card,
   .textarea,
+  .textInput,
   .btnGhost,
   .backBtn,
   .linkBtn,
@@ -671,7 +699,8 @@
     border-color: rgba(255, 255, 255, 0.10);
   }
 
-  .textarea:focus {
+  .textarea:focus,
+  .textInput:focus {
     box-shadow: 0 0 0 4px rgba(255, 185, 120, 0.14);
   }
 

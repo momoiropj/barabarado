@@ -125,31 +125,19 @@ function uniquePush(arr: string[], v: string) {
   arr.push(v);
 }
 
-function toSuruForm(input: string): string {
+function normalizeTodoText(input: string): string {
   let s = normalizeLine(input);
   s = s.replace(/[。．]$/, "").trim();
+  if (!s) return "";
 
-  if (s.endsWith("します")) return s.replace(/します$/, "する");
-  if (s.endsWith("する")) return s;
+  // 丁寧語→常体（最低限）
+  if (s.endsWith("します")) s = s.replace(/します$/, "する");
 
-  const repl: Array<[RegExp, string]> = [
-    [/書き出す$/, "列挙する"],
-    [/書く$/, "記載する"],
-    [/作る$/, "作成する"],
-    [/決める$/, "決定する"],
-    [/入れる$/, "入力する"],
-    [/まとめる$/, "整理する"],
-    [/集める$/, "収集する"],
-    [/選ぶ$/, "選定する"],
-    [/直す$/, "修正する"],
-    [/見る$/, "確認する"],
-  ];
-  for (const [re, rep] of repl) {
-    if (re.test(s)) return s.replace(re, rep);
-  }
+  // 「〜るする」などの変な語尾を潰す
+  s = s.replace(/(る|う|く|ぐ|す|つ|ぬ|ぶ|む)\s*する$/, "$1");
+  s = s.replace(/する\s*する$/, "する");
 
-  if (/(メモ|整理|作成|設定|確認|調整|検討|共有|記録)$/.test(s)) return s + "する";
-  return s + "する";
+  return s.trim();
 }
 
 function itemKey(text: string, category: string) {
@@ -329,7 +317,7 @@ function extractActionCandidates(text: string): { category: string; action: stri
   let currentL1 = "未分類";
 
   const push = (cat: string, actRaw: string) => {
-    const act = toSuruForm(normalizeLine(actRaw));
+    const act = normalizeTodoText(normalizeLine(actRaw));
     if (!act) return;
     if (act.includes("？") || act.includes("?")) return;
 
@@ -340,6 +328,13 @@ function extractActionCandidates(text: string): { category: string; action: stri
 
   for (const raw of lines) {
     const line = raw.replace(/^[-*•]\s*/, "");
+
+    // "[カテゴリ] タスクする" 形式も拾う（L1が崩れてもカテゴリを残す）
+    const bracket = line.match(/^\[([^\]]+)\]\s*(.+)$/);
+    if (bracket?.[1] && bracket?.[2]) {
+      push(normalizeLine(bracket[1]), bracket[2]);
+      continue;
+    }
 
     const m1 = line.match(/^L1[:：]\s*(.+)$/);
     if (m1?.[1]) {
@@ -353,13 +348,17 @@ function extractActionCandidates(text: string): { category: string; action: stri
       continue;
     }
 
-    // L3が無い出力でも拾う（箇条書きの “〜する”）
-    if (line.startsWith("【")) continue;
-    if (/^L[12][:：]/.test(line)) continue;
+// L3が無い出力でも拾う（箇条書きの「〜する」縛りはやめる）
+if (line.startsWith("【")) continue;
+if (/^L[12][:：]/.test(line)) continue;
 
-    if (/(する|します|した)$/.test(line) || /する\s*$/.test(line)) {
-      push(currentL1, line);
-    }
+if (
+  /(する|します|した)$/.test(line) ||
+  /(る|う|く|ぐ|す|つ|ぬ|ぶ|む)$/.test(line) ||
+  /できる$/.test(line)
+) {
+  push(currentL1, line);
+}
   }
 
   return out;
@@ -385,16 +384,16 @@ function contentAwareFallback(cleaned: string): { category: string; action: stri
       { category: "経費", action: "固定資産税や保険など追加経費の有無を確認する" },
       { category: "申告", action: "申告期限と提出方法（e-Tax/書面）を確認する" },
       { category: "申告", action: "不動産所得の収支内訳を作成する" },
-    ].map((x) => ({ ...x, action: toSuruForm(x.action) }));
+    ].map((x) => ({ ...x, action: normalizeTodoText(x.action) }));
   }
 
   return [
-    { category: "整理", action: "材料を一覧化する" },
-    { category: "整理", action: "不足情報を洗い出す" },
-    { category: "作成", action: "入力用の表を作成する" },
-    { category: "確認", action: "手順を確認する" },
-    { category: "実行", action: "最初の1つを実行する" },
-  ].map((x) => ({ ...x, action: toSuruForm(x.action) }));
+  { category: "目的", action: "ゴール（完了条件）を3つ書く" },
+  { category: "目的", action: "期限（いつまでに）を決める" },
+  { category: "予算感", action: "上限予算を決める（仮でOK）" },
+  { category: "準備", action: "必要な材料・情報を洗い出す" },
+  { category: "段取り", action: "作業の順番をざっくり並べる" },
+].map((x) => ({ ...x, action: normalizeTodoText(x.action) }));
 }
 
 /** 最初のToDo5つを作る：カテゴリ分散で拾う / 抽出失敗なら内容に合わせたフォールバック */
@@ -428,7 +427,7 @@ function pickInitial5FromAnalysis(aiRaw: string): ChecklistItem[] {
 
   return base.map((p) => ({
     id: uid(),
-    text: toSuruForm(p.action),
+    text: normalizeTodoText(p.action),
     done: false,
     category: p.category || "未分類",
     createdAt: new Date().toISOString(),
@@ -557,7 +556,7 @@ function extractSubTasks(text: string): string[] {
       const t = normalizeLine(m1[1]);
       if (!t) continue;
       if (t.includes("？") || t.includes("?")) continue;
-      uniquePush(out, toSuruForm(t));
+      uniquePush(out, normalizeTodoText(t));
       continue;
     }
 
@@ -566,7 +565,7 @@ function extractSubTasks(text: string): string[] {
       const t = normalizeLine(m3[1]);
       if (!t) continue;
       if (t.includes("？") || t.includes("?")) continue;
-      uniquePush(out, toSuruForm(t));
+      uniquePush(out, normalizeTodoText(t));
       continue;
     }
   }
@@ -577,7 +576,7 @@ function extractSubTasks(text: string): string[] {
       if (!t) continue;
       if (t.length < 3) continue;
       if (t.includes("？") || t.includes("?")) continue;
-      uniquePush(out, toSuruForm(t));
+      uniquePush(out, normalizeTodoText(t));
       if (out.length >= 7) break;
     }
   }
@@ -611,6 +610,9 @@ export default function Page() {
   const [goals, setGoals] = useState<string[]>([]);
 
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
+  const [newTodoText, setNewTodoText] = useState("");
+  const [newTodoCategory, setNewTodoCategory] = useState("");
+
   const [stage, setStage] = useState<number>(0);
   const [usedActionKeys, setUsedActionKeys] = useState<string[]>([]);
   const [stageHistory, setStageHistory] = useState<StageSnapshot[]>([]);
@@ -750,6 +752,36 @@ export default function Page() {
 
     setStageHistory(stageHistory.slice(1));
     showToast("ひとつ前の状態に戻した");
+  };
+
+  const addManualTodo = () => {
+    const text = newTodoText.trim();
+    if (!text) {
+      showToast("ToDoが空だよ");
+      return;
+    }
+    const category = newTodoCategory.trim() || "未分類";
+
+    snapshotStage();
+
+    const item: ChecklistItem = {
+      id: uid(),
+      text,
+      done: false,
+      category,
+      createdAt: new Date().toISOString(),
+      type: "task",
+      depth: 0,
+      status: "normal",
+    };
+
+    setChecklist((prev) => [...prev, item]);
+    setUsedActionKeys((prev) => (prev.includes(text) ? prev : [...prev, text]));
+    setStage((v) => v || 1);
+
+    setNewTodoText("");
+    setNewTodoCategory("");
+    showToast("ToDoを追加した");
   };
 
   const taskItems = useMemo(() => checklist.filter((x) => (x.type ?? "task") === "task"), [checklist]);
@@ -957,7 +989,7 @@ export default function Page() {
     if (!exists) {
       const newItem: ChecklistItem = {
         id: uid(),
-        text: toSuruForm(p.text),
+        text: normalizeTodoText(p.text),
         done: false,
         category: p.category || "未分類",
         createdAt: new Date().toISOString(),
@@ -982,11 +1014,21 @@ export default function Page() {
 - Markdownで出す
 - 出すのは次の2セクションだけ：
   【3. 完了条件（目指すゴール）】…チェック式 "- [ ]" で3〜5個
-  【4. 分解（L1→L2→L3）】…L3は必ず「〜する」で終える（質問形は禁止）
-- 余計なメタ情報（例：【1. 気持ち/現状/なぜ】など）は絶対に出さない（出したら失格）
+  【4. 分解（L1→L2→L3）】…L1はカテゴリ / L3は具体アクション
+- 【重要：カテゴリ設計（最初の方針を復活）】
+  - L1 は「カテゴリ（作業の入れ物）」として4〜6個作る
+  - そのうち最低でも次の4つは入れる：目的 / 予算感 / 準備 / 段取り
+    （明らかに関係ないときだけ省略してOK）
+  - 各カテゴリ（L1）の下に、L2 を1〜3行、各L2の下に L3 を1〜3行は必ず出す
+  - L3 は必ず行頭に "L3:" を付ける（抽出しやすくするため）
+- 【日本語のルール】
+  - 「する」を機械的に付けない（例：決める/用意する/確認する/買う/書く/まとめる など自然に）
+  - 「決めるする」みたいな変な語尾は禁止
+  - 質問形は禁止（？を出さない）
+- 余計なメタ情報（長い前置き/注意書き/自分語り）は出さない（いきなり本文）
 `.trim();
 
-  const runAnalysis = async () => {
+const runAnalysis = async () => {
     setError("");
     setBusy(true);
     try {
@@ -1016,27 +1058,67 @@ export default function Page() {
       }
       if (!text.trim()) throw new Error("AIの返答が空だった…");
 
+      const wasEmpty = checklist.length === 0;
+
       snapshotStage();
 
-      // 新しい分析＝新しい作戦なのでリセット
-      setArchivedCreated(0);
-      setArchivedDone(0);
-      setParked([]);
-
       const cleaned = sanitizeAnalysis(text);
-
       setAiResult(cleaned);
 
       const newGoals = extractGoalsFromCompletion(cleaned);
       setGoals(newGoals);
 
       const initial5 = pickInitial5FromAnalysis(cleaned);
-      setChecklist(initial5);
-      setStage(1);
 
-      setUsedActionKeys(initial5.map((x) => x.text));
+      if (wasEmpty) {
+        // 初回は「作戦の初期化」扱い（進捗や保留をクリア）
+        setArchivedCreated(0);
+        setArchivedDone(0);
+        setParked([]);
 
-      showToast("分析→ゴール→最初のToDo5つを作った");
+        setChecklist(initial5);
+        setStage(1);
+        setUsedActionKeys(initial5.map((x) => x.text));
+
+        showToast("分析→ゴール→最初のToDo5つを作った");
+      } else {
+        // 既存のToDo（手入力含む）は残す。AIから拾えた分だけ追加する。
+        const existing = new Set(checklist.map((x) => x.text.trim()).filter(Boolean));
+        const toAdd = initial5.filter((x) => {
+          const t = x.text.trim();
+          if (!t) return false;
+          if (existing.has(t)) return false;
+          existing.add(t);
+          return true;
+        });
+
+        if (toAdd.length > 0) {
+          setChecklist((prev) => {
+            const prevSet = new Set(prev.map((x) => x.text.trim()).filter(Boolean));
+            const add2 = initial5.filter((x) => {
+              const t = x.text.trim();
+              if (!t) return false;
+              if (prevSet.has(t)) return false;
+              prevSet.add(t);
+              return true;
+            });
+            return add2.length ? [...prev, ...add2] : prev;
+          });
+        }
+
+        setUsedActionKeys((prev) => {
+          const s = new Set(prev);
+          for (const x of initial5) {
+            const t = x.text.trim();
+            if (t) s.add(t);
+          }
+          return Array.from(s);
+        });
+
+        setStage((v) => v || 1);
+
+        showToast(toAdd.length > 0 ? `分析を更新＋ToDoを${toAdd.length}件追加した` : "分析を更新（ToDoはそのまま）");
+      }
     } catch (e: any) {
       setError(`分析でエラー：${String(e?.message ?? e)}`);
     } finally {
@@ -1106,7 +1188,7 @@ export default function Page() {
 
         const children: ChecklistItem[] = subs.map((t) => ({
           id: uid(),
-          text: toSuruForm(t),
+          text: normalizeTodoText(t),
           done: false,
           category: childCategory,
           createdAt: new Date().toISOString(),
@@ -1236,7 +1318,7 @@ export default function Page() {
 
     const nextTodos: ChecklistItem[] = nextPack.map((p) => ({
       id: uid(),
-      text: toSuruForm(p.action),
+      text: normalizeTodoText(p.action),
       done: false,
       category: p.category || "未分類",
       createdAt: new Date().toISOString(),
@@ -1600,6 +1682,42 @@ export default function Page() {
           {aiResult.trim() && !hasNextCandidates && (
             <p className={styles.infoNote}>次のToDo候補はもうないよ。下書きを増やして分析し直すか、「さらに分解」で増やしてね。</p>
           )}
+
+          {/* 手入力でToDoを追加（AI分析しても消えない） */}
+          <div className={styles.manualAdd}>
+            <div className={styles.row}>
+              <input
+                className={styles.textInput}
+                value={newTodoText}
+                onChange={(e) => setNewTodoText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addManualTodo();
+                  }
+                }}
+                placeholder="ToDoを手入力（例：領収書をまとめる）"
+              />
+              <input
+                className={styles.textInput}
+                value={newTodoCategory}
+                onChange={(e) => setNewTodoCategory(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addManualTodo();
+                  }
+                }}
+                placeholder="カテゴリ（任意）"
+              />
+              <button className={styles.btnPrimary} onClick={addManualTodo} disabled={!newTodoText.trim()} type="button">
+                追加
+              </button>
+            </div>
+            <p className={styles.pMuted} style={{ marginTop: 6 }}>
+              ※ここで追加したToDoは、あとでAI分析しても消えない
+            </p>
+          </div>
 
           {checklist.length === 0 ? (
             <p className={styles.pMuted} style={{ marginTop: 10 }}>
