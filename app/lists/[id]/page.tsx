@@ -1,4 +1,4 @@
-// app/lists/[id]/page.tsx
+﻿// app/lists/[id]/page.tsx
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -25,6 +25,8 @@ type ChecklistItem = {
   type?: "task" | "group";
   depth?: number;
   status?: ItemStatus;
+
+  note?: string;
 };
 
 type ParkedResolution = "returned" | "done" | "deleted" | "cleared";
@@ -39,24 +41,8 @@ type ParkedItem = {
   updatedAt: string;
   resolvedAt?: string;
   resolution?: ParkedResolution;
-};
 
-type StageSnapshot = {
-  stage: number;
-  createdAt: string;
-
-  items: ChecklistItem[];
-  goals: string[];
-  aiResult: string;
-  draft: string;
-
-  archivedCreated: number;
-  archivedDone: number;
-
-  parked: ParkedItem[];
-
-  usedActionKeys: string[];
-  issuedPrompt: string;
+  note?: string;
 };
 
 type SavedDetail = {
@@ -68,7 +54,6 @@ type SavedDetail = {
   stage: number;
 
   usedActionKeys: string[];
-  stageHistory: StageSnapshot[];
   issuedPrompt: string;
 
   archivedCreated: number;
@@ -130,10 +115,8 @@ function normalizeTodoText(input: string): string {
   s = s.replace(/[。．]$/, "").trim();
   if (!s) return "";
 
-  // 丁寧語→常体（最低限）
   if (s.endsWith("します")) s = s.replace(/します$/, "する");
 
-  // 「〜るする」などの変な語尾を潰す
   s = s.replace(/(る|う|く|ぐ|す|つ|ぬ|ぶ|む)\s*する$/, "$1");
   s = s.replace(/する\s*する$/, "する");
 
@@ -146,10 +129,9 @@ function itemKey(text: string, category: string) {
 
 function loadDetail(listId: string): SavedDetail {
   const key = `${DETAIL_KEY_PREFIX}${listId}`;
-  const parsed = safeParseJSON<Partial<SavedDetail>>(localStorage.getItem(key));
-    const now = new Date().toISOString();
+  const parsed = safeParseJSON<any>(localStorage.getItem(key));
+  const now = new Date().toISOString();
 
-  // localStorage の古い/壊れたデータを読み込んでも落ちないように正規化
   const normalizeChecklist = (arr: any[] | undefined): ChecklistItem[] => {
     if (!Array.isArray(arr)) return [];
 
@@ -163,6 +145,8 @@ function loadDetail(listId: string): SavedDetail {
         const status: ChecklistItem["status"] =
           x?.status === "unknown" ? "unknown" : x?.status === "later" ? "later" : "normal";
 
+        const note = typeof x?.note === "string" ? x.note : "";
+
         return {
           id: String(x?.id ?? uid()),
           text: String(x?.text ?? ""),
@@ -172,6 +156,7 @@ function loadDetail(listId: string): SavedDetail {
           type,
           depth: Number.isFinite(depthNum) ? depthNum : 0,
           status,
+          note,
         };
       })
       .filter((x) => x.text);
@@ -205,45 +190,24 @@ function loadDetail(listId: string): SavedDetail {
           updatedAt: typeof p?.updatedAt === "string" ? p.updatedAt : now,
           resolvedAt: typeof p?.resolvedAt === "string" ? p.resolvedAt : undefined,
           resolution,
+          note: typeof p?.note === "string" ? p.note : "",
         };
       })
       .filter((p) => p.key && p.text);
   };
 
-  const stageHistory: StageSnapshot[] = Array.isArray((parsed as any)?.stageHistory)
-    ? ((parsed as any).stageHistory as any[])
-        .map((h: any): StageSnapshot => ({
-          stage: Number(h?.stage ?? 0),
-          createdAt: String(h?.createdAt ?? now),
-          items: normalizeChecklist(h?.items),
-          goals: Array.isArray(h?.goals) ? h.goals.map((g: any) => String(g)) : [],
-          aiResult: String(h?.aiResult ?? ""),
-          draft: String(h?.draft ?? ""),
-          archivedCreated: Number(h?.archivedCreated ?? 0),
-          archivedDone: Number(h?.archivedDone ?? 0),
-          parked: normalizeParked(h?.parked),
-          usedActionKeys: Array.isArray(h?.usedActionKeys) ? h.usedActionKeys.map((x: any) => String(x)) : [],
-          issuedPrompt: String(h?.issuedPrompt ?? ""),
-        }))
-        .filter((h) => h.stage >= 0 && Boolean(h.createdAt))
-    : [];
-
-
   return {
-    draft: String((parsed as any)?.draft ?? ""),
-    aiResult: String((parsed as any)?.aiResult ?? ""),
-    goals: Array.isArray((parsed as any)?.goals) ? (parsed as any).goals.map((g: any) => String(g)) : [],
-    checklist: normalizeChecklist((parsed as any)?.checklist),
-    stage: Number((parsed as any)?.stage ?? 0),
-    usedActionKeys: Array.isArray((parsed as any)?.usedActionKeys)
-      ? ((parsed as any).usedActionKeys as any[]).map((x) => String(x))
-      : [],
-    stageHistory,
-    issuedPrompt: String((parsed as any)?.issuedPrompt ?? ""),
-    archivedCreated: Number((parsed as any)?.archivedCreated ?? 0),
-    archivedDone: Number((parsed as any)?.archivedDone ?? 0),
-    parked: normalizeParked((parsed as any)?.parked),
-    updatedAt: String((parsed as any)?.updatedAt ?? now),
+    draft: String(parsed?.draft ?? ""),
+    aiResult: String(parsed?.aiResult ?? ""),
+    goals: Array.isArray(parsed?.goals) ? parsed.goals.map((g: any) => String(g)) : [],
+    checklist: normalizeChecklist(parsed?.checklist),
+    stage: Number(parsed?.stage ?? 0) || 0,
+    usedActionKeys: Array.isArray(parsed?.usedActionKeys) ? parsed.usedActionKeys.map((x: any) => String(x)) : [],
+    issuedPrompt: String(parsed?.issuedPrompt ?? ""),
+    archivedCreated: Number(parsed?.archivedCreated ?? 0) || 0,
+    archivedDone: Number(parsed?.archivedDone ?? 0) || 0,
+    parked: normalizeParked(parsed?.parked),
+    updatedAt: String(parsed?.updatedAt ?? now),
   };
 }
 
@@ -252,7 +216,6 @@ function saveDetail(listId: string, detail: SavedDetail) {
   localStorage.setItem(key, JSON.stringify(detail));
 }
 
-/** 分析から「余計なメタ情報（【1】【2】）」が混ざっても、3/4だけ残す */
 function sanitizeAnalysis(raw: string): string {
   const text = raw.trim();
   if (!text) return "";
@@ -265,7 +228,26 @@ function sanitizeAnalysis(raw: string): string {
   return text;
 }
 
-/** 完了条件（目指すゴール）を抜く */
+function extractBreakdownSection(text: string): string {
+  const raw = (text ?? "").trim();
+  if (!raw) return "";
+
+  const lines = raw.split("\n");
+  const start = lines.findIndex((l) => /【\s*4[\.\s]*分解/.test(l.trim()));
+  if (start < 0) {
+    return raw;
+  }
+
+  const tail = lines.slice(start + 1);
+  const endRel = tail.findIndex((l) => {
+    const t = l.trim();
+    return /^【\s*[0-9]/.test(t) && !/【\s*4[\.\s]*分解/.test(t);
+  });
+  const end = endRel >= 0 ? start + 1 + endRel : lines.length;
+
+  return lines.slice(start, end).join("\n").trim();
+}
+
 function extractGoalsFromCompletion(text: string): string[] {
   const lines = text.split("\n");
   const goals: string[] = [];
@@ -328,8 +310,30 @@ function extractActionCandidates(text: string): { category: string; action: stri
 
   for (const raw of lines) {
     const line = raw.replace(/^[-*•]\s*/, "");
+    const trimmedRaw = raw.trim();
 
-    // "[カテゴリ] タスクする" 形式も拾う（L1が崩れてもカテゴリを残す）
+    if (/^-+\s*\[\s*[xX ]?\s*\]\s*/.test(trimmedRaw) && !/L3[:：]/.test(trimmedRaw)) {
+      continue;
+    }
+
+    const mdHead = line.match(/^#{2,6}\s*(.+)$/);
+    if (mdHead?.[1]) {
+      currentL1 = normalizeLine(mdHead[1]) || currentL1 || "未分類";
+      continue;
+    }
+
+    const plainCat = line.match(/^(目的|予算感|準備|段取り)\s*$/);
+    if (plainCat?.[1]) {
+      currentL1 = plainCat[1];
+      continue;
+    }
+
+    const inlineCat = line.match(/^(目的|予算感|準備|段取り)\s*[:：]\s*(.+)$/);
+    if (inlineCat?.[1] && inlineCat?.[2]) {
+      push(inlineCat[1], inlineCat[2]);
+      continue;
+    }
+
     const bracket = line.match(/^\[([^\]]+)\]\s*(.+)$/);
     if (bracket?.[1] && bracket?.[2]) {
       push(normalizeLine(bracket[1]), bracket[2]);
@@ -348,82 +352,136 @@ function extractActionCandidates(text: string): { category: string; action: stri
       continue;
     }
 
-// L3が無い出力でも拾う（箇条書きの「〜する」縛りはやめる）
-if (line.startsWith("【")) continue;
-if (/^L[12][:：]/.test(line)) continue;
+    if (line.startsWith("【")) continue;
+    if (/^L[12][:：]/.test(line)) continue;
 
-if (
-  /(する|します|した)$/.test(line) ||
-  /(る|う|く|ぐ|す|つ|ぬ|ぶ|む)$/.test(line) ||
-  /できる$/.test(line)
-) {
-  push(currentL1, line);
-}
+    if (
+      /(する|します|した)$/.test(line) ||
+      /(る|う|く|ぐ|す|つ|ぬ|ぶ|む)$/.test(line) ||
+      /できる$/.test(line)
+    ) {
+      push(currentL1, line);
+    }
   }
 
   return out;
 }
 
-/** 内容に合わせたフォールバック（「関係ない固定5個」をやめる） */
-function contentAwareFallback(cleaned: string): { category: string; action: string }[] {
-  const lower = cleaned.toLowerCase();
+/**
+ * ✅ 「最初の一歩になりやすい」候補を優先するためのスコアリング
+ * - 抽象語（まとめる/整理する/検討する/調べる 等）だけのタスクを弱く
+ * - 手の動きが見える（開く/探す/取り出す/写真/入力/選ぶ/決める 等）を強く
+ * - 数字/時間/具体物（書類/箱/机/フォルダ/サイト 等）があると強く
+ */
+function scoreMicroAction(action: string): number {
+  const a = action.trim();
+  const len = a.length;
 
-  const looksTax =
-    lower.includes("確定申告") ||
-    lower.includes("不動産") ||
-    lower.includes("家賃") ||
-    lower.includes("固定資産税") ||
-    lower.includes("減価償却") ||
-    lower.includes("e-tax") ||
-    lower.includes("収支内訳");
+  const hasNumber = /[0-9０-９]/.test(a) || /(一|二|三|四|五|六|七|八|九|十|3つ|5分|10分|15分|20分)/.test(a);
+  const hasTime = /(分|時間|今日|今|すぐ|まず)/.test(a);
 
-  if (looksTax) {
-    return [
-      { category: "通帳", action: "入金（家賃）を月別に一覧化する" },
-      { category: "経費", action: "管理費・引落・控除の実態を通帳で確認する" },
-      { category: "経費", action: "固定資産税や保険など追加経費の有無を確認する" },
-      { category: "申告", action: "申告期限と提出方法（e-Tax/書面）を確認する" },
-      { category: "申告", action: "不動産所得の収支内訳を作成する" },
-    ].map((x) => ({ ...x, action: normalizeTodoText(x.action) }));
-  }
+  const concreteNouns =
+    /(書類|レシート|領収書|請求書|メール|アプリ|サイト|ページ|URL|リンク|フォルダ|箱|机|引き出し|スマホ|PC|ブラウザ|ログイン|ID|パスワード|カード|メモ|紙)/;
+  const hasConcrete = concreteNouns.test(a);
 
-  return [
-  { category: "目的", action: "ゴール（完了条件）を3つ書く" },
-  { category: "目的", action: "期限（いつまでに）を決める" },
-  { category: "予算感", action: "上限予算を決める（仮でOK）" },
-  { category: "準備", action: "必要な材料・情報を洗い出す" },
-  { category: "段取り", action: "作業の順番をざっくり並べる" },
-].map((x) => ({ ...x, action: normalizeTodoText(x.action) }));
+  const strongVerbs =
+    /(開く|ログイン|探す|見つける|取り出す|出す|並べる|仕分ける|写真|撮る|印刷|保存|コピー|貼る|入力|書く|メモ|チェック|確認|選ぶ|決める|用意|作る|申請|提出|ダウンロード|インストール)/;
+  const hasStrong = strongVerbs.test(a);
+
+  const vagueVerbs = /(まとめる|整理する|洗い出す|把握する|検討する|調べる|言語化する|考える|理解する|計画する|準備する)/;
+  const hasVague = vagueVerbs.test(a);
+
+  let score = 0;
+
+  if (hasStrong) score += 6;
+  if (hasConcrete) score += 5;
+  if (hasNumber) score += 3;
+  if (hasTime) score += 1;
+
+  // 抽象語のみは弱い（ただし具体物があるならそこまで減点しない）
+  if (hasVague && !hasConcrete) score -= 5;
+  if (hasVague && hasConcrete) score -= 1;
+
+  // 長すぎるのは重いタスクの確率が高い
+  if (len >= 30) score -= 3;
+  if (len >= 45) score -= 6;
+
+  // 「〜について調べる」テンプレは弱い（最初の一歩としては重い）
+  if (/について(調べる|検討する|考える)$/.test(a)) score -= 6;
+
+  return score;
 }
 
-/** 最初のToDo5つを作る：カテゴリ分散で拾う / 抽出失敗なら内容に合わせたフォールバック */
+/**
+ * ✅ AI出力が薄い/壊れた時のフォールバック（完全に抽象）
+ * - 特定ドメインに寄せない
+ * - 「考える」→「ルート決め」→「物理的に手が動く」→「予算仮置き」→「5分着手」
+ */
+function contentAwareFallback(_cleaned: string): { category: string; action: string }[] {
+  return [
+    { category: "目的", action: "理想の完了状態を1文で書く" },
+    { category: "段取り", action: "進め方のルートを選ぶ（自力/外注、オンライン/対面など）" },
+    { category: "準備", action: "関連しそうな物や情報がありそうな場所を1か所決める" },
+    { category: "予算感", action: "上限予算を仮で決める（0円でもOK）" },
+    { category: "段取り", action: "タイマーを5分にして最初の1つだけ着手する" },
+  ].map((x) => ({ ...x, action: normalizeTodoText(x.action) }));
+}
+
+/**
+ * ✅ 初回5つ：
+ * - 必須カテゴリ（目的/予算感/準備/段取り）を優先して1個ずつ
+ * - その上で「最初の一歩」スコアが高いものを上位から埋める
+ */
 function pickInitial5FromAnalysis(aiRaw: string): ChecklistItem[] {
   const cleaned = sanitizeAnalysis(aiRaw);
-  const cands = extractActionCandidates(cleaned);
+  const onlyBreakdown = extractBreakdownSection(cleaned);
+  const cands = extractActionCandidates(onlyBreakdown);
+
+  const scored = cands
+    .map((c) => ({
+      category: c.category || "未分類",
+      action: normalizeTodoText(c.action),
+      score: scoreMicroAction(normalizeTodoText(c.action)),
+    }))
+    .filter((x) => x.action);
+
+  scored.sort((a, b) => b.score - a.score);
 
   const picked: { category: string; action: string }[] = [];
-  const used = new Set<string>();
+  const usedAction = new Set<string>();
 
-  // まずカテゴリ分散で拾う
-  for (const c of cands) {
-    const k = c.action.toLowerCase();
-    if (used.has(k)) continue;
-    if (picked.some((p) => p.category.toLowerCase() === c.category.toLowerCase())) continue;
-    picked.push(c);
-    used.add(k);
-    if (picked.length >= 5) break;
+  const mustCats = ["目的", "予算感", "準備", "段取り"];
+
+  for (const cat of mustCats) {
+    const best = scored.find(
+      (x) => x.category.toLowerCase() === cat.toLowerCase() && !usedAction.has(x.action.toLowerCase())
+    );
+    if (best) {
+      picked.push({ category: best.category, action: best.action });
+      usedAction.add(best.action.toLowerCase());
+    }
   }
 
-  // 足りない分は残りから
-  for (const c of cands) {
+  for (const s of scored) {
     if (picked.length >= 5) break;
-    const k = c.action.toLowerCase();
-    if (used.has(k)) continue;
-    picked.push(c);
-    used.add(k);
+    const k = s.action.toLowerCase();
+    if (usedAction.has(k)) continue;
+    picked.push({ category: s.category, action: s.action });
+    usedAction.add(k);
   }
 
-  const base = picked.length > 0 ? picked.slice(0, 5) : contentAwareFallback(cleaned).slice(0, 5);
+  if (picked.length < 5) {
+    const fb = contentAwareFallback(cleaned);
+    for (const f of fb) {
+      if (picked.length >= 5) break;
+      const k = f.action.toLowerCase();
+      if (usedAction.has(k)) continue;
+      picked.push({ category: f.category, action: normalizeTodoText(f.action) });
+      usedAction.add(k);
+    }
+  }
+
+  const base = picked.length ? picked.slice(0, 5) : contentAwareFallback(cleaned).slice(0, 5);
 
   return base.map((p) => ({
     id: uid(),
@@ -434,6 +492,7 @@ function pickInitial5FromAnalysis(aiRaw: string): ChecklistItem[] {
     type: "task",
     depth: 0,
     status: "normal",
+    note: "",
   }));
 }
 
@@ -445,18 +504,20 @@ function goalsToMarkdown(goals: string[]) {
 function checklistToMarkdown(items: ChecklistItem[]) {
   const tasks = items.filter((x) => (x.type ?? "task") === "task");
   if (tasks.length === 0) return "- [ ] （まだToDoがないよ）";
+
   return tasks
     .map((it) => {
       const st =
         it.status && it.status !== "normal"
           ? `(${it.status === "unknown" ? "わからない" : "あとまわし"}) `
           : "";
-      return `- [${it.done ? "x" : " "}] [${it.category || "未分類"}] ${st}${it.text}`;
+      const note = (it.note || "").trim();
+      const notePart = note ? ` / 追記: ${note.replace(/\n/g, " ")}` : "";
+      return `- [${it.done ? "x" : " "}] [${it.category || "未分類"}] ${st}${it.text}${notePart}`;
     })
     .join("\n");
 }
 
-/** バトンパス用プロンプト */
 function buildBatonPassPrompt(args: {
   draft: string;
   aiResult: string;
@@ -465,225 +526,161 @@ function buildBatonPassPrompt(args: {
   stage: number;
   includeDraft: boolean;
   includeAnalysis: boolean;
-}): string {
+}) {
   const { draft, aiResult, goals, checklist, stage, includeDraft, includeAnalysis } = args;
 
-  const goalBlock = `## 目指すゴール（完了条件）\n\n\`\`\`markdown\n${goalsToMarkdown(goals)}\n\`\`\``;
-  const todoBlock = `## 現在のToDo（Stage ${stage || 0}）\n\n\`\`\`markdown\n${checklistToMarkdown(checklist)}\n\`\`\``;
+  const parts: string[] = [];
+  parts.push(`# BarabaraDo バトンパスプロンプト（貼り付け専用）`);
+  parts.push("");
+  parts.push(`あなたは「実行に強いToDo分解コーチ」。`);
+  parts.push(
+    `ユーザーが BarabaraDo で作った素材（ToDo/下書き/チェックリスト）を受け取って、**次に何をすれば進むか**を決めさせ、必要ならチェックリストをユーザーに合わせて改造して前に進める。`
+  );
+  parts.push("");
+  parts.push("---");
+  parts.push("");
+  parts.push(`## 入力（BarabaraDoからの引き継ぎ）`);
+  if (includeDraft) {
+    parts.push(`- **下書き**: ${draft.trim() ? draft.trim().replace(/\n/g, " / ") : "（なし）"}`);
+  }
+  if (includeAnalysis) {
+    parts.push(`- **AI分析（要約）**: ${aiResult.trim() ? "あり" : "（なし）"}`);
+  }
+  parts.push(`- **Stage**: ${stage || 1}`);
+  parts.push("");
+  parts.push(`## 目指すゴール（完了条件）`);
+  parts.push(goalsToMarkdown(goals));
+  parts.push("");
+  parts.push(`## 現在のToDoチェックリスト（追記つき）`);
+  parts.push(checklistToMarkdown(checklist));
+  parts.push("");
+  parts.push(`---`);
+  parts.push("");
+  parts.push(`## あなたの最初の返答（必須・この1行で開始）`);
+  parts.push(`**「OK，BarabaraDoからバトンパスされたよ！ここからは私がサポートするよ」**`);
+  parts.push("");
+  parts.push(`---`);
+  parts.push("");
+  parts.push(`## 進め方（ルール）`);
+  parts.push(`- 抽象論で終わらせない。**必ず“行動”に落とす**（何を・いつ・どこで・どうやって）。`);
+  parts.push(`- ユーザーが迷っているなら、**次の5分の行動**を決めさせる。`);
+  parts.push(`- ToDoが大きい/曖昧なら、**追加の質問**で具体化してから分解する。`);
+  parts.push(`- 出力は、ユーザーがコピペしやすいチェックリスト形式を優先する。`);
 
-  const draftBlock = includeDraft
-    ? draft.trim()
-      ? `## 下書き（参考）\n\n\`\`\`markdown\n${draft.trim()}\n\`\`\``
-      : `## 下書き（参考）\n\n（なし）`
-    : "";
-
-  const analysisBlock = includeAnalysis
-    ? aiResult.trim()
-      ? `## 分析（構造文法・参考）\n\n\`\`\`markdown\n${aiResult.trim()}\n\`\`\``
-      : `## 分析（構造文法・参考）\n\n（なし）`
-    : "";
-
-  const body = [goalBlock, todoBlock, draftBlock, analysisBlock].filter(Boolean).join("\n\n");
-
-  return [
-    `# BarabaraDo → Baton Pass`,
-    ``,
-    `あなたは「実行に強い伴走AI」。ユーザーのゴール達成のために、ToDoを具体化して進行管理する。`,
-    ``,
-    `## あなたの最初の返答（必須・この1行で開始）`,
-    `OK，BarabaraDoからバトンパスされたよ！ここからは私がサポートするよ`,
-    ``,
-    `## ルール`,
-    `- 抽象論で終わらせない。必ず「行動」に落とす`,
-    `- まず「今日このあと15分で終わる Next Action」を3つ出す`,
-    `- 次に、ToDoを “より小さく、詰まりにくく” 改造する`,
-    `- 質問は最大2つ（質問前に仮案を出す）`,
-    ``,
-    body,
-  ].join("\n");
+  return parts.join("\n");
 }
 
-/** indexのアイテム + 子孫をまとめて削除 */
-function removeWithDescendants(items: ChecklistItem[], index: number): { next: ChecklistItem[]; removed: ChecklistItem[] } {
-  const parentDepth = items[index]?.depth ?? 0;
-  let end = index + 1;
-  while (end < items.length) {
-    const d = items[end]?.depth ?? 0;
-    if (d <= parentDepth) break;
-    end++;
+function formatDateTime(iso: string) {
+  try {
+    const d = new Date(iso);
+    const yy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mi = String(d.getMinutes()).padStart(2, "0");
+    return `${yy}-${mm}-${dd} ${hh}:${mi}`;
+  } catch {
+    return iso;
   }
-  const removed = items.slice(index, end);
-  const next = items.slice(0, index).concat(items.slice(end));
-  return { next, removed };
 }
 
-/** indexのアイテム + 子孫を、同じ親スコープの末尾へ移動（あとまわし用） */
-function moveBlockToParentEnd(items: ChecklistItem[], index: number): ChecklistItem[] {
-  const depth = items[index]?.depth ?? 0;
-
-  let blockEnd = index + 1;
-  while (blockEnd < items.length) {
-    const d = items[blockEnd]?.depth ?? 0;
-    if (d <= depth) break;
-    blockEnd++;
+async function copyText(text: string, onOk?: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return { ok: true, msg: onOk || "コピーした" };
+  } catch {
+    return { ok: false, msg: "コピーできなかった（権限ブロックかも）" };
   }
-
-  let scopeEnd = blockEnd;
-  while (scopeEnd < items.length) {
-    const d = items[scopeEnd]?.depth ?? 0;
-    if (d < depth) break;
-    scopeEnd++;
-  }
-
-  if (scopeEnd === blockEnd) return items;
-
-  const before = items.slice(0, index);
-  const block = items.slice(index, blockEnd);
-  const middle = items.slice(blockEnd, scopeEnd);
-  const after = items.slice(scopeEnd);
-
-  return before.concat(middle, block, after);
 }
 
-/** 箇条書き/行からサブToDo候補を抜く */
-function extractSubTasks(text: string): string[] {
-  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
-  const out: string[] = [];
-
-  for (const ln of lines) {
-    const m1 = ln.match(/^[-*•]\s+(.+)$/);
-    if (m1?.[1]) {
-      const t = normalizeLine(m1[1]);
-      if (!t) continue;
-      if (t.includes("？") || t.includes("?")) continue;
-      uniquePush(out, normalizeTodoText(t));
-      continue;
-    }
-
-    const m3 = ln.match(/^L3[:：]\s*(.+)$/);
-    if (m3?.[1]) {
-      const t = normalizeLine(m3[1]);
-      if (!t) continue;
-      if (t.includes("？") || t.includes("?")) continue;
-      uniquePush(out, normalizeTodoText(t));
-      continue;
-    }
-  }
-
-  if (out.length === 0) {
-    for (const ln of lines) {
-      const t = normalizeLine(ln.replace(/^[-*•]/, ""));
-      if (!t) continue;
-      if (t.length < 3) continue;
-      if (t.includes("？") || t.includes("?")) continue;
-      uniquePush(out, normalizeTodoText(t));
-      if (out.length >= 7) break;
-    }
-  }
-
-  return out.slice(0, 7);
-}
-
-export default function Page() {
-  const router = useRouter();
+export default function ListDetailPage() {
   const params = useParams();
-
-  const listId = useMemo(() => {
-    const raw = (params as any)?.id;
-    if (typeof raw === "string") return raw;
-    if (Array.isArray(raw)) return String(raw[0] ?? "");
-    return "";
-  }, [params]);
-
-  const [toast, setToast] = useState<string | null>(null);
-  const toastTimer = useRef<number | null>(null);
-  const showToast = (msg: string) => {
-    setToast(msg);
-    if (toastTimer.current) window.clearTimeout(toastTimer.current);
-    toastTimer.current = window.setTimeout(() => setToast(null), 1600);
-  };
+  const router = useRouter();
+  const listId = String((params as any)?.id ?? "");
 
   const [list, setList] = useState<ListRow | null>(null);
 
   const [draft, setDraft] = useState("");
   const [aiResult, setAiResult] = useState("");
   const [goals, setGoals] = useState<string[]>([]);
-
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
-  const [newTodoText, setNewTodoText] = useState("");
-  const [newTodoCategory, setNewTodoCategory] = useState("");
+  const [stage, setStage] = useState(0);
 
-  const [stage, setStage] = useState<number>(0);
   const [usedActionKeys, setUsedActionKeys] = useState<string[]>([]);
-  const [stageHistory, setStageHistory] = useState<StageSnapshot[]>([]);
-
   const [issuedPrompt, setIssuedPrompt] = useState("");
-  const issuedPromptRef = useRef<HTMLTextAreaElement | null>(null);
 
-  const [includeDraftInPrompt, setIncludeDraftInPrompt] = useState(false);
-  const [includeAnalysisInPrompt, setIncludeAnalysisInPrompt] = useState(false);
-
-  const [archivedCreated, setArchivedCreated] = useState<number>(0);
-  const [archivedDone, setArchivedDone] = useState<number>(0);
+  const [archivedCreated, setArchivedCreated] = useState(0);
+  const [archivedDone, setArchivedDone] = useState(0);
 
   const [parked, setParked] = useState<ParkedItem[]>([]);
-  const [parkingOpen, setParkingOpen] = useState<boolean>(true);
 
   const [busy, setBusy] = useState(false);
   const [busyItemId, setBusyItemId] = useState<string | null>(null);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    if (!listId) return;
+  const [toast, setToast] = useState("");
 
+  const [includeDraftInPrompt, setIncludeDraftInPrompt] = useState(true);
+  const [includeAnalysisInPrompt, setIncludeAnalysisInPrompt] = useState(true);
+
+  const issuedPromptRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const [newTodoText, setNewTodoText] = useState("");
+  const [newTodoCategory, setNewTodoCategory] = useState("");
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    window.setTimeout(() => setToast(""), 1600);
+  };
+
+  useEffect(() => {
     const lists = loadGuestLists();
-    const found = lists.find((x) => x.id === listId) ?? null;
+    const found = lists.find((l) => l.id === listId) || null;
     setList(found);
 
-    const d = loadDetail(listId);
-    setDraft(d.draft);
-    setAiResult(d.aiResult);
-    setGoals(d.goals ?? []);
-    setChecklist(d.checklist ?? []);
-    setStage(d.stage ?? 0);
-    setUsedActionKeys(d.usedActionKeys ?? []);
-    setStageHistory(d.stageHistory ?? []);
-    setIssuedPrompt(d.issuedPrompt ?? "");
+    const detail = loadDetail(listId);
 
-    setArchivedCreated(d.archivedCreated ?? 0);
-    setArchivedDone(d.archivedDone ?? 0);
-    setParked(d.parked ?? []);
+    setDraft(detail.draft || "");
+    setAiResult(detail.aiResult || "");
+    setGoals(Array.isArray(detail.goals) ? detail.goals : []);
+    setChecklist(Array.isArray(detail.checklist) ? detail.checklist : []);
+    setStage(Number(detail.stage || 0) || 0);
+    setUsedActionKeys(Array.isArray(detail.usedActionKeys) ? detail.usedActionKeys : []);
+    setIssuedPrompt(String(detail.issuedPrompt || ""));
+
+    setArchivedCreated(Number(detail.archivedCreated || 0) || 0);
+    setArchivedDone(Number(detail.archivedDone || 0) || 0);
+    setParked(Array.isArray(detail.parked) ? detail.parked : []);
   }, [listId]);
 
-  const saveTimer = useRef<number | null>(null);
   useEffect(() => {
     if (!listId) return;
 
-    const payload: SavedDetail = {
+    const detail: SavedDetail = {
       draft,
       aiResult,
       goals,
       checklist,
       stage,
       usedActionKeys,
-      stageHistory,
       issuedPrompt,
       archivedCreated,
       archivedDone,
       parked,
       updatedAt: new Date().toISOString(),
     };
+    saveDetail(listId, detail);
 
-    if (saveTimer.current) window.clearTimeout(saveTimer.current);
-    saveTimer.current = window.setTimeout(() => {
-      try {
-        saveDetail(listId, payload);
-      } catch {}
-    }, 250);
-
-    return () => {
-      if (saveTimer.current) window.clearTimeout(saveTimer.current);
-    };
+    const lists = loadGuestLists();
+    const idx = lists.findIndex((l) => l.id === listId);
+    if (idx >= 0) {
+      lists[idx] = {
+        ...lists[idx],
+        title: lists[idx].title || list?.title || "リスト",
+        updatedAt: new Date().toISOString(),
+      };
+      localStorage.setItem(GUEST_LISTS_KEY, JSON.stringify(lists));
+    }
   }, [
     listId,
     draft,
@@ -692,77 +689,63 @@ export default function Page() {
     checklist,
     stage,
     usedActionKeys,
-    stageHistory,
     issuedPrompt,
     archivedCreated,
     archivedDone,
     parked,
+    list?.title,
   ]);
 
-  const copyText = async (text: string, okMsg: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      showToast(okMsg);
-    } catch {
-      const ta = document.createElement("textarea");
-      ta.value = text;
-      ta.style.position = "fixed";
-      ta.style.left = "-9999px";
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand("copy");
-      document.body.removeChild(ta);
-      showToast(okMsg);
+  const clearAll = () => {
+    setDraft("");
+    setAiResult("");
+    setGoals([]);
+    setChecklist([]);
+    setStage(0);
+    setUsedActionKeys([]);
+    setIssuedPrompt("");
+    setArchivedCreated(0);
+    setArchivedDone(0);
+    setParked([]);
+    showToast("リセットした");
+  };
+
+  const toggleDone = (id: string) => {
+    setChecklist((prev) => prev.map((x) => (x.id === id ? { ...x, done: !x.done } : x)));
+  };
+
+  const setNote = (id: string, note: string) => {
+    setChecklist((prev) => prev.map((x) => (x.id === id ? { ...x, note } : x)));
+  };
+
+  const deleteItem = (id: string) => {
+    const target = checklist.find((x) => x.id === id);
+    setChecklist((prev) => prev.filter((x) => x.id !== id));
+
+    if (target) {
+      const key = itemKey(target.text, target.category);
+      setParked((prev) => {
+        const idx = prev.findIndex((p) => p.key === key);
+        if (idx < 0) return prev;
+        const cur = prev[idx];
+        if (cur.resolvedAt) return prev;
+        const now = new Date().toISOString();
+        const next = [...prev];
+        next[idx] = { ...cur, updatedAt: now, resolvedAt: now, resolution: "deleted" };
+        return next;
+      });
     }
-  };
 
-  const snapshotStage = () => {
-    const snap: StageSnapshot = {
-      stage: stage || 0,
-      createdAt: new Date().toISOString(),
-      items: checklist,
-      goals,
-      aiResult,
-      draft,
-      archivedCreated,
-      archivedDone,
-      parked,
-      usedActionKeys,
-      issuedPrompt,
-    };
-    setStageHistory([snap, ...stageHistory].slice(0, 20));
-  };
-
-  const restoreLatestSnapshot = () => {
-    const latest = stageHistory[0];
-    if (!latest) return;
-
-    setChecklist(latest.items);
-    setGoals(latest.goals);
-    setAiResult(latest.aiResult);
-    setDraft(latest.draft);
-
-    setStage(latest.stage);
-    setArchivedCreated(latest.archivedCreated);
-    setArchivedDone(latest.archivedDone);
-    setParked(latest.parked);
-
-    setUsedActionKeys(latest.usedActionKeys);
-    setIssuedPrompt(latest.issuedPrompt);
-
-    setStageHistory(stageHistory.slice(1));
-    showToast("ひとつ前の状態に戻した");
+    showToast("削除した");
   };
 
   const addManualTodo = () => {
-    const text = newTodoText.trim();
+    const text = normalizeTodoText(newTodoText);
     if (!text) {
       showToast("ToDoが空だよ");
       return;
     }
     const category = newTodoCategory.trim() || "未分類";
-
-    snapshotStage();
 
     const item: ChecklistItem = {
       id: uid(),
@@ -773,6 +756,7 @@ export default function Page() {
       type: "task",
       depth: 0,
       status: "normal",
+      note: "",
     };
 
     setChecklist((prev) => [...prev, item]);
@@ -792,18 +776,16 @@ export default function Page() {
 
   const canGenerateNextStage = doneTasks >= 3 || remainingTasks <= 2;
 
-  // 見込みTodo数：分析から拾える候補数
   const l3Count = useMemo(() => {
     if (!aiResult.trim()) return 0;
     const cleaned = sanitizeAnalysis(aiResult);
-    return extractActionCandidates(cleaned).length;
+    return extractActionCandidates(extractBreakdownSection(cleaned)).length;
   }, [aiResult]);
 
-  // ✅ 次の候補「残り件数」（未使用の候補）
   const nextCandidateRemaining = useMemo(() => {
     if (!aiResult.trim()) return 0;
     const cleaned = sanitizeAnalysis(aiResult);
-    const cands = extractActionCandidates(cleaned);
+    const cands = extractActionCandidates(extractBreakdownSection(cleaned));
 
     const used = new Set(usedActionKeys.map((x) => x.toLowerCase()));
     const seen = new Set<string>();
@@ -821,7 +803,6 @@ export default function Page() {
 
   const hasNextCandidates = nextCandidateRemaining > 0;
 
-  // 総進捗
   const issuedTotal = archivedCreated + totalTasks;
   const expectedTotal = Math.max(l3Count, issuedTotal);
   const doneTotal = archivedDone + doneTasks;
@@ -845,6 +826,7 @@ export default function Page() {
           stage: stage || 0,
           createdAt: now,
           updatedAt: now,
+          note: it.note || "",
         };
         return [next, ...prev];
       }
@@ -859,21 +841,8 @@ export default function Page() {
         updatedAt: now,
         resolvedAt: undefined,
         resolution: undefined,
+        note: it.note || cur.note || "",
       };
-      return next;
-    });
-  };
-
-  const resolveParked = (it: ChecklistItem, resolution: ParkedResolution) => {
-    const key = itemKey(it.text, it.category);
-    const now = new Date().toISOString();
-    setParked((prev) => {
-      const idx = prev.findIndex((p) => p.key === key);
-      if (idx < 0) return prev;
-      const cur = prev[idx];
-      if (cur.resolvedAt) return prev;
-      const next = [...prev];
-      next[idx] = { ...cur, updatedAt: now, resolvedAt: now, resolution };
       return next;
     });
   };
@@ -891,100 +860,39 @@ export default function Page() {
     });
   };
 
-  const reopenIfDoneResolved = (it: ChecklistItem) => {
-    const key = itemKey(it.text, it.category);
-    const now = new Date().toISOString();
-    setParked((prev) => {
-      const idx = prev.findIndex((p) => p.key === key);
-      if (idx < 0) return prev;
-      const cur = prev[idx];
-      if (cur.resolution !== "done") return prev;
-      const next = [...prev];
-      next[idx] = { ...cur, updatedAt: now, resolvedAt: undefined, resolution: undefined };
-      return next;
-    });
-  };
-
-  const toggleItem = (id: string) => {
+  const toggleUnknown = (id: string) => {
     setChecklist((prev) =>
       prev.map((x) => {
         if (x.id !== id) return x;
-        if ((x.type ?? "task") === "group") return x;
-
-        const nextDone = !x.done;
-
-        if (nextDone) resolveParked(x, "done");
-        else reopenIfDoneResolved(x);
-
-        return { ...x, done: nextDone };
-      })
-    );
-  };
-
-  const deleteItem = (id: string) => {
-    snapshotStage();
-    setChecklist((prev) => {
-      const idx = prev.findIndex((x) => x.id === id);
-      if (idx < 0) return prev;
-
-      const { next, removed } = removeWithDescendants(prev, idx);
-
-      for (const r of removed) {
-        if ((r.type ?? "task") !== "task") continue;
-        resolveParked(r, "deleted");
-      }
-
-      return next;
-    });
-    showToast("削除した");
-  };
-
-  const setUnknown = (id: string) => {
-    setChecklist((prev) =>
-      prev.map((x) => {
-        if (x.id !== id) return x;
-        if ((x.type ?? "task") === "group") return x;
-
         const nextStatus: ItemStatus = x.status === "unknown" ? "normal" : "unknown";
-        const next: ChecklistItem = { ...x, status: nextStatus, done: nextStatus === "unknown" ? false : x.done };
-
-        if (nextStatus === "unknown") upsertParked(next, "unknown");
-        else resolveParked(next, "cleared");
-
-        return next;
+        const nextDone = nextStatus === "unknown" ? false : x.done;
+        return { ...x, status: nextStatus, done: nextDone };
       })
     );
+
+    const it = checklist.find((x) => x.id === id);
+    if (it) upsertParked(it, "unknown");
+
     showToast("「わからない」を切り替えた");
   };
 
-  const setLater = (id: string) => {
-    setChecklist((prev) => {
-      const idx = prev.findIndex((x) => x.id === id);
-      if (idx < 0) return prev;
-      const it = prev[idx];
-      if ((it.type ?? "task") === "group") return prev;
+  const toggleLater = (id: string) => {
+    setChecklist((prev) =>
+      prev.map((x) => {
+        if (x.id !== id) return x;
+        const nextStatus: ItemStatus = x.status === "later" ? "normal" : "later";
+        const nextDone = nextStatus === "later" ? false : x.done;
+        return { ...x, status: nextStatus, done: nextDone };
+      })
+    );
 
-      const toLater = it.status !== "later";
-      const updated = [...prev];
-      const nextStatus: ItemStatus = toLater ? "later" : "normal";
-      const nextItem: ChecklistItem = { ...it, status: nextStatus, done: false };
-      updated[idx] = nextItem;
+    const it = checklist.find((x) => x.id === id);
+    if (it) upsertParked(it, "later");
 
-      if (toLater) {
-        upsertParked(nextItem, "later");
-        return moveBlockToParentEnd(updated, idx);
-      } else {
-        resolveParked(nextItem, "cleared");
-        return updated;
-      }
-    });
     showToast("「あとまわし」を切り替えた");
   };
 
-  // ✅ 保留ボード → このStageに復帰
   const reviveParkedToStage = (p: ParkedItem) => {
-    snapshotStage();
-
     const exists = checklist.some((x) => itemKey(x.text, x.category) === p.key);
     if (!exists) {
       const newItem: ChecklistItem = {
@@ -996,6 +904,7 @@ export default function Page() {
         type: "task",
         depth: 0,
         status: "normal",
+        note: p.note || "",
       };
       setChecklist((prev) => [newItem, ...prev]);
       setUsedActionKeys((prev) => {
@@ -1009,26 +918,42 @@ export default function Page() {
     showToast(exists ? "既にToDoにあるので、保留だけ解消した" : "このStageに復帰させた");
   };
 
-    const STRUCTURED_GRAMMAR_HINT = `
+  const STRUCTURED_GRAMMAR_HINT = `
 【出力フォーマット（構造文法・厳守）】
 - Markdownで出す
 - 出すのは次の2セクションだけ：
-  【3. 完了条件（目指すゴール）】…チェック式 "- [ ]" で3〜5個
+  【3. 完了条件（目指すゴール）】…チェック式 "- [ ]" で3〜5個（ToDoと同じ文を入れない）
   【4. 分解（L1→L2→L3）】…L1はカテゴリ / L3は具体アクション
-- 【重要：カテゴリ設計（最初の方針を復活）】
-  - L1 は「カテゴリ（作業の入れ物）」として4〜6個作る
-  - そのうち最低でも次の4つは入れる：目的 / 予算感 / 準備 / 段取り
-    （明らかに関係ないときだけ省略してOK）
-  - 各カテゴリ（L1）の下に、L2 を1〜3行、各L2の下に L3 を1〜3行は必ず出す
-  - L3 は必ず行頭に "L3:" を付ける（抽出しやすくするため）
-- 【日本語のルール】
-  - 「する」を機械的に付けない（例：決める/用意する/確認する/買う/書く/まとめる など自然に）
-  - 「決めるする」みたいな変な語尾は禁止
-  - 質問形は禁止（？を出さない）
-- 余計なメタ情報（長い前置き/注意書き/自分語り）は出さない（いきなり本文）
+
+【重要：カテゴリ設計（必須）】
+- L1 は最低でも次の4つを必ず含む：目的 / 予算感 / 準備 / 段取り
+- 必要なら追加カテゴリOK（最大6）
+- 各L1の最初のL2は必ず「最初の一歩（5〜15分）」にする
+- 各L2の下に L3 を1〜3行は必ず出す
+- L3 は必ず行頭に "L3:" を付ける（抽出のため）
+
+【最初の5つのToDoの作り方（最重要）】
+- 最初の一歩は「机に座って3分で手が動くレベル」に落とす
+- 抽象語だけのToDoは禁止（例：整理する / まとめる / 調べる / 検討する / 言語化する）
+  - 代わりに「何をどうする」を書く（例：アプリを開く / 書類を1か所に集める / 検索キーワードを3つ書く）
+- 分岐がある作業は、最初に「ルートを選ぶ」を必ず入れる（例：オンライン/対面、自力/外注、公式手順/代替）
+- 情報が足りない場合は、仮定を置く：
+  - L3には仮定を書かない（タスクだけにする）
+  - 仮定はL2の補足行として "前提:" で書き、文末は「前提」で止める（動詞で終えない）
+
+【予算感（一般論の提示）】
+- 予算の参考は、L2の補足として "参考:" を付けて箇条書きで書く
+- 文末は「目安」か「円程度」で止める（動詞で終えない）
+- その上で、L3では「上限予算を仮で決める」「外注するか決める」など、意思決定の一歩にする
+
+【日本語のルール】
+- 「すべて“〜する”で終わる」強制はしない。自然な動詞で終える（決める/買う/書く/まとめる/確認する 等）
+- 「決めるする」みたいな不自然語尾は禁止
+- 質問形は禁止（？を出さない）
+- 余計な前置き・長い注意書き・自分語りは禁止（いきなり本文）
 `.trim();
 
-const runAnalysis = async () => {
+  const runAnalysis = async () => {
     setError("");
     setBusy(true);
     try {
@@ -1060,18 +985,19 @@ const runAnalysis = async () => {
 
       const wasEmpty = checklist.length === 0;
 
-      snapshotStage();
-
       const cleaned = sanitizeAnalysis(text);
       setAiResult(cleaned);
 
-      const newGoals = extractGoalsFromCompletion(cleaned);
-      setGoals(newGoals);
-
       const initial5 = pickInitial5FromAnalysis(cleaned);
 
+      const newGoalsRaw = extractGoalsFromCompletion(cleaned);
+      const todoLike = new Set<string>(
+        [...checklist.map((x) => normalizeLine(x.text)), ...initial5.map((x) => normalizeLine(x.text))].filter(Boolean)
+      );
+      const newGoals = newGoalsRaw.filter((g) => !todoLike.has(normalizeLine(g)));
+      setGoals(newGoals);
+
       if (wasEmpty) {
-        // 初回は「作戦の初期化」扱い（進捗や保留をクリア）
         setArchivedCreated(0);
         setArchivedDone(0);
         setParked([]);
@@ -1082,7 +1008,6 @@ const runAnalysis = async () => {
 
         showToast("分析→ゴール→最初のToDo5つを作った");
       } else {
-        // 既存のToDo（手入力含む）は残す。AIから拾えた分だけ追加する。
         const existing = new Set(checklist.map((x) => x.text.trim()).filter(Boolean));
         const toAdd = initial5.filter((x) => {
           const t = x.text.trim();
@@ -1126,6 +1051,24 @@ const runAnalysis = async () => {
     }
   };
 
+  function extractSubTasks(text: string): string[] {
+    const lines = text
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean);
+
+    const out: string[] = [];
+    for (const raw of lines) {
+      const line = raw.replace(/^[-*•]\s*/, "");
+      const m = line.match(/^-?\s*\[\s*[xX ]?\s*\]\s*(.+)$/);
+      const body = normalizeTodoText(m?.[1] ?? line);
+      if (!body) continue;
+      if (body.includes("？") || body.includes("?")) continue;
+      uniquePush(out, body);
+    }
+    return out.slice(0, 12);
+  }
+
   const decomposeTodo = async (itemId: string) => {
     setError("");
     const target = checklist.find((x) => x.id === itemId);
@@ -1137,15 +1080,20 @@ const runAnalysis = async () => {
       const SUBTASK_HINT = `
 次のToDoを、実行できるサブToDoに3〜7個へ分解して。
 - 出力はMarkdownの箇条書きだけ（見出し・説明は禁止）
-- 1行1タスクで、各行は「〜する」で終える
+- 1行1タスク。抽象語（整理する/まとめる/調べる/検討する）だけは禁止
+- 代わりに「何をどうする」まで書く（例：アプリを開く、検索キーワードを3つ書く、書類を1か所に集める）
 `.trim();
+
+      const noteBlock = (target.note || "").trim()
+        ? `\n\n追記（ユーザーの追加情報）:\n${target.note.trim()}\n`
+        : "";
 
       const res = await fetch("/api/ai/breakdown", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           todo: target.text,
-          context: `${SUBTASK_HINT}\n\n---\n参考ゴール:\n${goals.join("\n")}\n\n参考メモ:\n${draft}`,
+          context: `${SUBTASK_HINT}${noteBlock}\n\n---\n参考ゴール:\n${goals.join("\n")}\n\n参考メモ:\n${draft}`,
         }),
       });
 
@@ -1166,8 +1114,6 @@ const runAnalysis = async () => {
 
       const subs = extractSubTasks(text);
       if (subs.length === 0) throw new Error("サブToDoを抽出できなかった（出力形式が崩れてる）");
-
-      snapshotStage();
 
       setChecklist((prev) => {
         const idx = prev.findIndex((x) => x.id === itemId);
@@ -1195,6 +1141,7 @@ const runAnalysis = async () => {
           type: "task",
           depth: childDepth,
           status: "normal",
+          note: "",
         }));
 
         const next = [...prev];
@@ -1217,7 +1164,6 @@ const runAnalysis = async () => {
     }
   };
 
-  // ✅ 次ステージ生成：候補がないなら「ない」と通知して何もしない
   const generateNextStage = () => {
     if (!canGenerateNextStage) {
       showToast("先に3つチェック or 未完了2つ以下になったら作れる");
@@ -1229,10 +1175,9 @@ const runAnalysis = async () => {
     }
 
     const cleaned = sanitizeAnalysis(aiResult);
-    const cands = extractActionCandidates(cleaned);
+    const cands = extractActionCandidates(extractBreakdownSection(cleaned));
     const used = new Set(usedActionKeys.map((x) => x.toLowerCase()));
 
-    // 未使用候補をユニーク化
     const available: { category: string; action: string }[] = [];
     const seen = new Set<string>();
     for (const c of cands) {
@@ -1243,15 +1188,11 @@ const runAnalysis = async () => {
       available.push(c);
     }
 
-    // ✅ 次が無い
     if (available.length === 0) {
       showToast("次のToDoがもうない。下書きを足して分析し直すか、「さらに分解」で増やしてね");
       return;
     }
 
-    snapshotStage();
-
-    // 未完了タスクは保留へ（あとまわし）
     const carry = taskItems.filter((t) => !t.done);
     if (carry.length > 0) {
       setParked((prev) => {
@@ -1269,6 +1210,7 @@ const runAnalysis = async () => {
               stage: stage || 0,
               createdAt: now,
               updatedAt: now,
+              note: t.note || "",
             };
             next.unshift(created);
           } else {
@@ -1283,6 +1225,7 @@ const runAnalysis = async () => {
               updatedAt: now,
               resolvedAt: undefined,
               resolution: undefined,
+              note: t.note || cur.note || "",
             };
           }
         }
@@ -1290,30 +1233,30 @@ const runAnalysis = async () => {
       });
     }
 
-    // 総進捗ロールアップ
     setArchivedCreated((v) => v + totalTasks);
     setArchivedDone((v) => v + doneTasks);
 
-    // 次ステージの最大5つを、未使用候補からカテゴリ分散で拾う
+    const scored = available
+      .map((a) => ({ ...a, score: scoreMicroAction(a.action) }))
+      .sort((x, y) => y.score - x.score);
+
     const picked: { category: string; action: string }[] = [];
     const usedCat = new Set<string>();
 
-    for (const c of available) {
+    for (const c of scored) {
       if (picked.length >= 5) break;
       const catKey = (c.category || "未分類").toLowerCase();
       if (usedCat.has(catKey)) continue;
-      picked.push(c);
+      picked.push({ category: c.category || "未分類", action: c.action });
       usedCat.add(catKey);
     }
 
-    for (const c of available) {
+    for (const c of scored) {
       if (picked.length >= 5) break;
-      const key = c.action.toLowerCase();
-      if (picked.some((p) => p.action.toLowerCase() === key)) continue;
-      picked.push(c);
+      if (picked.some((p) => p.action.toLowerCase() === c.action.toLowerCase())) continue;
+      picked.push({ category: c.category || "未分類", action: c.action });
     }
 
-    // ✅ 残りが少ないときは少ないまま作る（フォールバックで水増ししない）
     const nextPack = picked.slice(0, 5);
 
     const nextTodos: ChecklistItem[] = nextPack.map((p) => ({
@@ -1325,6 +1268,7 @@ const runAnalysis = async () => {
       type: "task",
       depth: 0,
       status: "normal",
+      note: "",
     }));
 
     setChecklist(nextTodos);
@@ -1336,13 +1280,12 @@ const runAnalysis = async () => {
       return next;
     });
 
-    // ✅ 残り数の通知
     const remainingAfter = Math.max(available.length - nextTodos.length, 0);
-    if (remainingAfter === 0) {
-      showToast(`次のToDoを${nextTodos.length}個作った（これで最後）`);
-    } else {
-      showToast(`次のToDoを${nextTodos.length}個作った（残り候補 ${remainingAfter}）`);
-    }
+    showToast(
+      remainingAfter === 0
+        ? `次のToDoを${nextTodos.length}個作った（これで最後）`
+        : `次のToDoを${nextTodos.length}個作った（残り候補 ${remainingAfter}）`
+    );
   };
 
   const generateIssuedPrompt = () => {
@@ -1383,403 +1326,236 @@ const runAnalysis = async () => {
           includeDraft: includeDraftInPrompt,
           includeAnalysis: includeAnalysisInPrompt,
         });
-
-    const combined = [
-      p.trim(),
-      "",
-      "---",
-      "",
-      "## ゴール",
-      goalsToMarkdown(goals),
-      "",
-      "## ToDo",
-      checklistToMarkdown(checklist),
-    ].join("\n");
-    copyText(combined, "ゴール＋ToDo＋プロンプトをコピーした");
+    copyText(p, "まとめてコピーした");
   };
 
-  if (!listId) {
-    return (
-      <main className={styles.main}>
-        <div className={styles.container}>
-          <p className={styles.errorBox}>IDが取れなかった。いったん Lists に戻って開き直してね。</p>
-          <Link className={styles.linkBtn} href="/lists">
-            ← Listsへ
-          </Link>
-        </div>
-      </main>
-    );
-  }
-
-  const nextBtnLabel = !aiResult.trim()
-    ? "次のToDo5つを作る"
-    : hasNextCandidates
-      ? `次のToDoを作る（候補残り ${nextCandidateRemaining}）`
-      : "次のToDoはもうない";
-
-  const nextBtnClass =
-    !hasNextCandidates && aiResult.trim()
-      ? styles.btnWarn
-      : canGenerateNextStage
-        ? styles.btnPrimary
-        : styles.btnDisabled;
+  const topTitle = list?.title || "リスト";
+  const lastUpdated = useMemo(() => {
+    const d = loadDetail(listId);
+    return d.updatedAt ? formatDateTime(d.updatedAt) : "";
+  }, [
+    listId,
+    draft,
+    aiResult,
+    goals,
+    checklist,
+    stage,
+    usedActionKeys,
+    issuedPrompt,
+    archivedCreated,
+    archivedDone,
+    parked,
+  ]);
 
   return (
     <main className={styles.main}>
       <header className={styles.header}>
         <div className={styles.headerTop}>
-          <button className={styles.backBtn} onClick={() => router.push("/lists")} type="button">
-            ← Lists
+          <button className={styles.backBtn} onClick={() => router.push("/lists")}>
+            ← リスト一覧
           </button>
 
           <div className={styles.headerRight}>
             <div className={styles.badges}>
-              <span className={styles.badge}>🧸 ゲストモード</span>
-              <span className={styles.badge}>🔒 この端末のブラウザに保存</span>
+              <span className={styles.badge}>Stage: {stage || 0}</span>
+              <span className={styles.badge}>進捗: {progressPct}%</span>
+              <span className={styles.badge}>全体: {overallPct}%</span>
+              <span className={styles.badge}>残り見込み: {remainingExpected}</span>
+              <span className={styles.badge}>次候補: {nextCandidateRemaining}</span>
             </div>
 
             <nav className={styles.nav}>
-              <Link className={styles.navLink} href="/help">
-                Help
-              </Link>
-              <span className={styles.navSep}>·</span>
               <Link className={styles.navLink} href="/concept">
-                Concept
+                コンセプト
+              </Link>
+              <span className={styles.navSep}>/</span>
+              <Link className={styles.navLink} href="/help">
+                使い方
               </Link>
             </nav>
           </div>
         </div>
 
-        <h1 className={styles.pageTitle}>{list?.title ?? "List"}</h1>
-        <p className={styles.subtitle}>下書き → 分析（構造文法）→ ゴール → ToDo（分解/わからない/あとまわし）＋総進捗</p>
+        <h1 className={styles.pageTitle}>{topTitle}</h1>
+        <p className={styles.subtitle}>
+          下書き→分析→ゴールと最初の5つ→チェックして次の5つ。<br />
+          「わからない」「あとまわし」は保留ボードに集約される。
+        </p>
       </header>
 
       <div className={styles.container}>
-        {/* 1) 下書き */}
+        {toast ? <div className={styles.toast}>{toast}</div> : null}
+
         <section className={styles.card}>
           <div className={styles.cardHead}>
-            <h2 className={styles.h2}>1) 下書き（雑に放り込んでOK）</h2>
-            <span className={styles.mini}>ここだけで分析できる</span>
+            <h2 className={styles.h2}>下書き（状況を書く）</h2>
+            <span className={styles.mini}>最終更新: {lastUpdated || "—"}</span>
           </div>
+
+          <p className={styles.p}>
+            何が面倒か・どこが詰まってるか・ゴールは何か。雑でOK。ここが増えるほどAIが賢くなる（たぶん）。
+          </p>
 
           <textarea
             className={styles.textarea}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            placeholder="例）通帳だけ／家賃入金／控除／支出…など雑に"
+            placeholder={"例：やらなきゃいけないのに気が重い。何から手を付ければいいか分からない。資料や情報が散らばってる。"}
           />
 
           <div className={styles.row}>
-            <button className={styles.btnPrimary} onClick={runAnalysis} disabled={busy} type="button">
-              {busy ? "分析中…" : "AIで分析する（ゴール→最初のToDo5つ）"}
+            <button className={styles.btnPrimary} onClick={runAnalysis} disabled={busy}>
+              {busy ? "分析中…" : "AIで分析"}
             </button>
 
-            <button
-              className={styles.btnGhost}
-              onClick={() => {
-                snapshotStage();
-                setDraft("");
-                showToast("下書きをクリアした");
-              }}
-              type="button"
-            >
-              下書きクリア
+            <button className={styles.btnDanger} onClick={clearAll} disabled={busy}>
+              全リセット
             </button>
-
-            {stageHistory.length > 0 && (
-              <button className={styles.btnGhost} onClick={restoreLatestSnapshot} type="button">
-                ひとつ前に戻す
-              </button>
-            )}
           </div>
 
-          {error && <p className={styles.error}>{error}</p>}
-        </section>
-
-        {/* 2) 分析 */}
-        <section className={styles.card}>
-          <div className={styles.cardHead}>
-            <h2 className={styles.h2}>2) 分析（構造文法）</h2>
-            <span className={styles.mini}>AIの生テキスト（メタは削って表示）</span>
-          </div>
-
-          {aiResult.trim() ? <pre className={styles.pre}>{aiResult}</pre> : <p className={styles.pMuted}>（まだ分析してないよ）</p>}
-
-          {aiResult.trim() && (
-            <div className={styles.row}>
-              <button className={styles.btnGhost} onClick={() => copyText(aiResult, "分析をコピーした")} type="button">
-                分析をコピー
-              </button>
-            </div>
-          )}
-        </section>
-
-        {/* 3) ゴール */}
-        <section className={styles.card}>
-          <div className={styles.cardHead}>
-            <h2 className={styles.h2}>3) 目指すゴール（完了条件）</h2>
-            <span className={styles.mini}>完了条件＝ゴール</span>
-          </div>
-
-          {goals.length > 0 ? (
-            <div className={styles.goalBox}>
-              {goals.map((g, i) => (
-                <div key={`${g}_${i}`} className={styles.goalLine}>
-                  <span className={styles.goalBullet}>●</span>
-                  <span className={styles.goalText}>{g}</span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className={styles.pMuted}>（まだゴールがないよ。AIで分析すると自動で入る）</p>
-          )}
+          {error ? <div className={styles.error}>{error}</div> : null}
 
           <div className={styles.row}>
-            <button className={styles.btnGhost} onClick={() => copyText(goalsToMarkdown(goals), "ゴールをコピーした")} type="button">
-              ゴールをコピー（Markdown）
-            </button>
+            <label className={styles.toggle}>
+              <input
+                type="checkbox"
+                checked={includeDraftInPrompt}
+                onChange={(e) => setIncludeDraftInPrompt(e.target.checked)}
+              />
+              下書きをプロンプトに含める
+            </label>
+
+            <label className={styles.toggle}>
+              <input
+                type="checkbox"
+                checked={includeAnalysisInPrompt}
+                onChange={(e) => setIncludeAnalysisInPrompt(e.target.checked)}
+              />
+              AI分析をプロンプトに含める
+            </label>
           </div>
         </section>
 
-        {/* 4) ToDo */}
         <section className={styles.card}>
           <div className={styles.cardHead}>
-            <h2 className={styles.h2}>4) ToDo（分解で増える）</h2>
-            <span className={styles.mini}>Stage {stage || 0}</span>
+            <h2 className={styles.h2}>目指すゴール（完了条件）</h2>
+            <span className={styles.mini}>3〜5個</span>
           </div>
 
-          {/* 総進捗 */}
-          <div className={styles.overallRow}>
-            <div className={styles.kpi}>
-              <div className={styles.kpiLabel}>見込みTodo数</div>
-              <div className={styles.kpiValue}>{expectedTotal}</div>
-              <div className={styles.kpiHint}>（分析候補={l3Count} / 生成済み={issuedTotal}）</div>
-            </div>
-            <div className={styles.kpi}>
-              <div className={styles.kpiLabel}>累計完了</div>
-              <div className={styles.kpiValue}>{doneTotal}</div>
-              <div className={styles.kpiHint}>（過去={archivedDone} / 現在={doneTasks}）</div>
-            </div>
-            <div className={styles.kpi}>
-              <div className={styles.kpiLabel}>累計残り（見込み）</div>
-              <div className={styles.kpiValue}>{remainingExpected}</div>
-              <div className={styles.kpiHint}>保留={parkedUnresolved.length}</div>
-            </div>
-            <div className={styles.kpiWide}>
-              <div className={styles.kpiLabel}>総進捗</div>
-              <div className={styles.progressBar}>
-                <div className={styles.progressFill} style={{ width: `${overallPct}%` }} />
-              </div>
-              <div className={styles.kpiHint}>{overallPct}%</div>
-            </div>
-          </div>
-
-          {/* 現ステージ進捗 */}
-          <div className={styles.kpiRow}>
-            <div className={styles.kpi}>
-              <div className={styles.kpiLabel}>このStage 合計</div>
-              <div className={styles.kpiValue}>{totalTasks}</div>
-            </div>
-            <div className={styles.kpi}>
-              <div className={styles.kpiLabel}>このStage 完了</div>
-              <div className={styles.kpiValue}>{doneTasks}</div>
-            </div>
-            <div className={styles.kpi}>
-              <div className={styles.kpiLabel}>このStage 残り</div>
-              <div className={styles.kpiValue}>{remainingTasks}</div>
-            </div>
-            <div className={styles.kpiWide}>
-              <div className={styles.kpiLabel}>このStage 進捗</div>
-              <div className={styles.progressBar}>
-                <div className={styles.progressFill} style={{ width: `${progressPct}%` }} />
-              </div>
-              <div className={styles.kpiHint}>{progressPct}%</div>
-            </div>
-          </div>
-
-          {/* 保留ボード */}
-          <div className={styles.parkingBox}>
-            <div className={styles.parkingHead}>
-              <div className={styles.parkingTitle}>
-                保留ボード（わからない / あとまわし）
-                <span className={styles.parkingMeta}>
-                  未解決 {parkedUnresolved.length} / 解消 {parkedResolved.length}
-                </span>
-              </div>
-              <button className={styles.btnMiniGhost} onClick={() => setParkingOpen((v) => !v)} type="button">
-                {parkingOpen ? "たたむ" : "ひらく"}
-              </button>
-            </div>
-
-            {parkingOpen && (
-              <div className={styles.parkingBody}>
-                {parked.length === 0 ? (
-                  <p className={styles.pMuted}>（まだ保留はないよ）</p>
-                ) : (
-                  <>
-                    <div className={styles.parkingSection}>
-                      <div className={styles.parkingSectionTitle}>未解決</div>
-                      {parkedUnresolved.length === 0 ? (
-                        <p className={styles.pMuted}>（未解決なし）</p>
-                      ) : (
-                        <div className={styles.parkingList}>
-                          {parkedUnresolved.map((p) => (
-                            <div key={p.key} className={styles.parkingItem}>
-                              <span className={`${styles.statusPill} ${p.status === "unknown" ? styles.statusUnknown : styles.statusLater}`}>
-                                {p.status === "unknown" ? "わからない" : "あとまわし"}
-                              </span>
-                              <span className={styles.tag}>{p.category}</span>
-                              <span className={styles.parkingText}>{p.text}</span>
-                              <span className={styles.parkingRight}>Stage {p.stage}</span>
-
-                              <button className={styles.btnMiniRevive} onClick={() => reviveParkedToStage(p)} type="button">
-                                このStageに復帰
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className={styles.parkingSection}>
-                      <div className={styles.parkingSectionTitle}>解消済み</div>
-                      {parkedResolved.length === 0 ? (
-                        <p className={styles.pMuted}>（解消済みなし）</p>
-                      ) : (
-                        <div className={styles.parkingList}>
-                          {parkedResolved.slice(0, 30).map((p) => (
-                            <div key={p.key} className={`${styles.parkingItem} ${styles.parkingResolved}`}>
-                              <span className={`${styles.statusPill} ${p.status === "unknown" ? styles.statusUnknown : styles.statusLater}`}>
-                                {p.status === "unknown" ? "わからない" : "あとまわし"}
-                              </span>
-                              <span className={styles.tag}>{p.category}</span>
-                              <span className={styles.parkingText}>{p.text}</span>
-                              <span className={styles.parkingRight}>
-                                {p.resolution === "returned"
-                                  ? "復帰"
-                                  : p.resolution === "done"
-                                    ? "完了"
-                                    : p.resolution === "deleted"
-                                      ? "削除"
-                                      : "解除"}
-                              </span>
-                            </div>
-                          ))}
-                          {parkedResolved.length > 30 && <p className={styles.pMuted}>（解消済みは最新30件だけ表示）</p>}
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-
-          <p className={styles.p}>
-            ルール：<b>3つチェック</b> または <b>未完了が2つ以下</b> で「次のToDo」を作れる。未完了は自動で保留に送る。
-          </p>
-
-          {aiResult.trim() && !hasNextCandidates && (
-            <p className={styles.infoNote}>次のToDo候補はもうないよ。下書きを増やして分析し直すか、「さらに分解」で増やしてね。</p>
+          {goals.length ? (
+            <ul className={styles.goalList}>
+              {goals.map((g) => (
+                <li key={g} className={styles.goalItem}>
+                  {g}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className={styles.pMuted}>まだゴールがない（AI分析すると入る）</p>
           )}
+        </section>
 
-          {/* 手入力でToDoを追加（AI分析しても消えない） */}
+        <section className={styles.card}>
+          <div className={styles.cardHead}>
+            <h2 className={styles.h2}>手入力ToDo（消えない）</h2>
+            <span className={styles.mini}>AI分析しても消さない</span>
+          </div>
+
           <div className={styles.manualAdd}>
             <div className={styles.row}>
               <input
                 className={styles.textInput}
                 value={newTodoText}
                 onChange={(e) => setNewTodoText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    addManualTodo();
-                  }
-                }}
-                placeholder="ToDoを手入力（例：領収書をまとめる）"
+                placeholder="例：資料がありそうな箱を開ける"
               />
               <input
                 className={styles.textInput}
                 value={newTodoCategory}
                 onChange={(e) => setNewTodoCategory(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    addManualTodo();
-                  }
-                }}
                 placeholder="カテゴリ（任意）"
               />
-              <button className={styles.btnPrimary} onClick={addManualTodo} disabled={!newTodoText.trim()} type="button">
+              <button className={styles.btnPrimary} onClick={addManualTodo} disabled={busy}>
                 追加
               </button>
             </div>
-            <p className={styles.pMuted} style={{ marginTop: 6 }}>
-              ※ここで追加したToDoは、あとでAI分析しても消えない
-            </p>
           </div>
 
-          {checklist.length === 0 ? (
-            <p className={styles.pMuted} style={{ marginTop: 10 }}>
-              （AIで分析すると、最初の5つが自動で入る）
-            </p>
-          ) : (
-            <div className={styles.listBox}>
+          <p className={styles.pMuted}>
+            ここで入れたToDoは守る。AI分析は「追加」しかしない（既存は消さない）。
+          </p>
+        </section>
+
+        <section className={styles.card}>
+          <div className={styles.cardHead}>
+            <h2 className={styles.h2}>ToDo（いまのStage）</h2>
+            <span className={styles.mini}>
+              {doneTasks}/{totalTasks} 完了
+            </span>
+          </div>
+
+          {taskItems.length ? (
+            <div className={styles.todoList}>
               {checklist.map((it) => {
                 const isGroup = (it.type ?? "task") === "group";
-                const indent = (it.depth ?? 0) * 14;
-                const status = it.status ?? "normal";
+                const isTask = !isGroup;
+                const depth = it.depth ?? 0;
+                const indentStyle = { marginLeft: `${Math.min(depth, 4) * 14}px` };
 
                 return (
-                  <div
-                    key={it.id}
-                    className={`${styles.itemRow} ${isGroup ? styles.groupRow : ""} ${
-                      status === "unknown" ? styles.statusRowUnknown : status === "later" ? styles.statusRowLater : ""
-                    }`}
-                    style={{ marginLeft: indent }}
-                  >
-                    <label className={styles.itemLabel}>
-                      <input
-                        type="checkbox"
-                        checked={isGroup ? true : it.done}
-                        disabled={isGroup}
-                        onChange={() => toggleItem(it.id)}
-                      />
-                      <span className={styles.tag}>{it.category || "未分類"}</span>
-
-                      {status !== "normal" && (
-                        <span className={`${styles.statusPill} ${status === "unknown" ? styles.statusUnknown : styles.statusLater}`}>
-                          {status === "unknown" ? "わからない" : "あとまわし"}
-                        </span>
+                  <div key={it.id} className={isGroup ? styles.todoGroup : styles.todoRow} style={indentStyle}>
+                    <div className={styles.todoLeft}>
+                      {isTask ? (
+                        <input
+                          type="checkbox"
+                          checked={it.done}
+                          onChange={() => toggleDone(it.id)}
+                          className={styles.checkbox}
+                        />
+                      ) : (
+                        <span className={styles.groupDot}>●</span>
                       )}
 
-                      <span className={isGroup ? styles.groupTitle : it.done ? styles.itemDone : ""}>{it.text}</span>
-                    </label>
+                      <span className={styles.cat}>{it.category || "未分類"}</span>
 
-                    <div className={styles.itemActions}>
-                      {!isGroup && (
+                      <span className={it.done ? styles.todoTextDone : styles.todoText}>{it.text}</span>
+
+                      {it.status === "unknown" ? <span className={styles.tagUnknown}>わからない</span> : null}
+                      {it.status === "later" ? <span className={styles.tagLater}>あとまわし</span> : null}
+
+                      {isTask ? (
+                        <input
+                          className={styles.noteInput}
+                          value={it.note ?? ""}
+                          onChange={(e) => setNote(it.id, e.target.value)}
+                          placeholder="追記（例：期限の希望 / 使いたい方法 / どこが不明か / 使える時間 など）"
+                        />
+                      ) : null}
+                    </div>
+
+                    <div className={styles.todoRight}>
+                      {isTask ? (
                         <>
                           <button
-                            className={styles.btnMiniPrimary}
+                            className={styles.btnGhost}
                             onClick={() => decomposeTodo(it.id)}
-                            type="button"
-                            disabled={busyItemId === it.id}
-                            title="このToDoをさらに分解してサブToDoを追加"
+                            disabled={busyItemId === it.id || busy}
+                            title="このToDoをさらに分解"
                           >
                             {busyItemId === it.id ? "分解中…" : "さらに分解"}
                           </button>
 
-                          <button className={styles.btnMiniGhost} onClick={() => setUnknown(it.id)} type="button">
+                          <button className={styles.btnWarn} onClick={() => toggleUnknown(it.id)} disabled={busy}>
                             わからない
                           </button>
 
-                          <button className={styles.btnMiniLater} onClick={() => setLater(it.id)} type="button">
+                          <button className={styles.btnWarn} onClick={() => toggleLater(it.id)} disabled={busy}>
                             あとまわし
                           </button>
                         </>
-                      )}
+                      ) : null}
 
-                      <button className={styles.btnDanger} onClick={() => deleteItem(it.id)} type="button">
+                      <button className={styles.btnDanger} onClick={() => deleteItem(it.id)} disabled={busy}>
                         削除
                       </button>
                     </div>
@@ -1787,74 +1563,108 @@ const runAnalysis = async () => {
                 );
               })}
             </div>
+          ) : (
+            <p className={styles.pMuted}>まだToDoがない（AI分析で最初の5つが作られる）</p>
           )}
 
-          <div className={styles.row} style={{ marginTop: 12 }}>
-            <button className={styles.btnGhost} onClick={() => copyText(checklistToMarkdown(checklist), "ToDoをコピーした")} type="button">
-              ToDoをコピー（Markdown）
-            </button>
-
+          <div className={styles.row}>
             <button
-              className={nextBtnClass}
+              className={hasNextCandidates ? styles.btnPrimary : styles.btnDisabled}
               onClick={generateNextStage}
-              type="button"
-              disabled={!canGenerateNextStage}
-              title={
-                !canGenerateNextStage
-                  ? "3つチェック or 未完了2つ以下で解放"
-                  : !hasNextCandidates && aiResult.trim()
-                    ? "候補がもうない（分析し直す or 分解で増やす）"
-                    : ""
-              }
+              disabled={busy}
             >
-              {nextBtnLabel}
+              次の5つを作る
             </button>
-
-            <button
-              className={styles.btnGhost}
-              onClick={() => {
-                const ok = window.confirm("ToDoを全部クリアする？（戻すボタンで復旧できる）");
-                if (!ok) return;
-                snapshotStage();
-                setChecklist([]);
-                setStage(0);
-                setUsedActionKeys([]);
-                showToast("ToDoをクリアした");
-              }}
-              type="button"
-            >
-              全クリア
-            </button>
+            <span className={styles.mini}>
+              条件：3つ完了 or 未完了2つ以下 / 残り候補 {nextCandidateRemaining}
+            </span>
           </div>
         </section>
 
-        {/* 5) プロンプト発行 */}
         <section className={styles.card}>
           <div className={styles.cardHead}>
-            <h2 className={styles.h2}>5) プロンプト発行（他AIへバトンパス）</h2>
-            <span className={styles.mini}>デフォはゴール＋ToDoだけ</span>
+            <h2 className={styles.h2}>保留ボード（わからない・あとまわし）</h2>
+            <span className={styles.mini}>
+              未解決 {parkedUnresolved.length} / 解決済み {parkedResolved.length}
+            </span>
           </div>
 
-          <div className={styles.toggleRow}>
-            <label className={styles.toggle}>
-              <input type="checkbox" checked={includeDraftInPrompt} onChange={(e) => setIncludeDraftInPrompt(e.target.checked)} />
-              <span>下書きを含める</span>
-            </label>
-            <label className={styles.toggle}>
-              <input type="checkbox" checked={includeAnalysisInPrompt} onChange={(e) => setIncludeAnalysisInPrompt(e.target.checked)} />
-              <span>分析を含める</span>
-            </label>
+          {parkedUnresolved.length ? (
+            <div className={styles.parkList}>
+              {parkedUnresolved.map((p) => (
+                <div key={p.key} className={styles.parkRow}>
+                  <div className={styles.parkLeft}>
+                    <span className={styles.cat}>{p.category || "未分類"}</span>
+                    <span className={styles.todoText}>{p.text}</span>
+                    <span className={p.status === "unknown" ? styles.tagUnknown : styles.tagLater}>
+                      {p.status === "unknown" ? "わからない" : "あとまわし"}
+                    </span>
+                    <span className={styles.mini}>（Stage {p.stage}）</span>
+
+                    {p.note?.trim() ? <span className={styles.noteBadge}>追記あり</span> : null}
+                  </div>
+
+                  <div className={styles.parkRight}>
+                    <button className={styles.btnPrimary} onClick={() => reviveParkedToStage(p)} disabled={busy}>
+                      このStageに復帰
+                    </button>
+                    <button className={styles.btnGhost} onClick={() => resolveParkedByKey(p.key, "done")} disabled={busy}>
+                      解決（完了）
+                    </button>
+                    <button
+                      className={styles.btnDanger}
+                      onClick={() => resolveParkedByKey(p.key, "cleared")}
+                      disabled={busy}
+                    >
+                      クリア
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className={styles.pMuted}>保留はまだない</p>
+          )}
+
+          {parkedResolved.length ? (
+            <>
+              <p className={styles.p}>解決済み</p>
+              <div className={styles.parkList}>
+                {parkedResolved.map((p) => (
+                  <div key={p.key} className={styles.parkRowResolved}>
+                    <div className={styles.parkLeft}>
+                      <span className={styles.cat}>{p.category || "未分類"}</span>
+                      <span className={styles.todoTextDone}>{p.text}</span>
+                      <span className={styles.mini}>
+                        {p.resolution ? `（${p.resolution}）` : ""}{" "}
+                        {p.resolvedAt ? formatDateTime(p.resolvedAt) : ""}
+                      </span>
+                      {p.note?.trim() ? <span className={styles.noteBadge}>追記あり</span> : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : null}
+        </section>
+
+        <section className={styles.card}>
+          <div className={styles.cardHead}>
+            <h2 className={styles.h2}>プロンプト発行（次チャット用）</h2>
+            <span className={styles.mini}>コピペ用</span>
           </div>
+
+          <p className={styles.pMuted}>チェックリスト・ゴール・追記も含めて、次チャットに渡せる。</p>
 
           <div className={styles.row}>
-            <button className={styles.btnPrimary} onClick={generateIssuedPrompt} type="button">
+            <button className={styles.btnPrimary} onClick={generateIssuedPrompt} disabled={busy}>
               プロンプト発行
             </button>
-            <button className={styles.btnGhost} onClick={copyPromptOnly} type="button">
-              プロンプトをコピー
+            <button className={styles.btnGhost} onClick={copyPromptOnly} disabled={busy}>
+              プロンプトだけコピー
             </button>
-            <button className={styles.btnGhost} onClick={copyAll} type="button">
-              ゴール＋ToDo＋プロンプトをコピー
+            <button className={styles.btnGhost} onClick={copyAll} disabled={busy}>
+              まとめてコピー
             </button>
           </div>
 
@@ -1863,12 +1673,22 @@ const runAnalysis = async () => {
             className={styles.textarea}
             value={issuedPrompt}
             onChange={(e) => setIssuedPrompt(e.target.value)}
-            placeholder="（ここに発行されたMarkdownが入る）"
-            style={{ marginTop: 10 }}
+            placeholder="ここに発行される"
           />
         </section>
 
-        {toast && <div className={styles.toast}>{toast}</div>}
+        <section className={styles.card}>
+          <div className={styles.cardHead}>
+            <h2 className={styles.h2}>AI分析（表示）</h2>
+            <span className={styles.mini}>抽出元（そのまま表示）</span>
+          </div>
+
+          {aiResult.trim() ? (
+            <pre className={styles.pre}>{aiResult}</pre>
+          ) : (
+            <p className={styles.pMuted}>まだ分析がない</p>
+          )}
+        </section>
       </div>
     </main>
   );
