@@ -367,12 +367,6 @@ function extractActionCandidates(text: string): { category: string; action: stri
   return out;
 }
 
-/**
- * ✅ 「最初の一歩になりやすい」候補を優先するためのスコアリング
- * - 抽象語（まとめる/整理する/検討する/調べる 等）だけのタスクを弱く
- * - 手の動きが見える（開く/探す/取り出す/写真/入力/選ぶ/決める 等）を強く
- * - 数字/時間/具体物（書類/箱/机/フォルダ/サイト 等）があると強く
- */
 function scoreMicroAction(action: string): number {
   const a = action.trim();
   const len = a.length;
@@ -398,25 +392,17 @@ function scoreMicroAction(action: string): number {
   if (hasNumber) score += 3;
   if (hasTime) score += 1;
 
-  // 抽象語のみは弱い（ただし具体物があるならそこまで減点しない）
   if (hasVague && !hasConcrete) score -= 5;
   if (hasVague && hasConcrete) score -= 1;
 
-  // 長すぎるのは重いタスクの確率が高い
   if (len >= 30) score -= 3;
   if (len >= 45) score -= 6;
 
-  // 「〜について調べる」テンプレは弱い（最初の一歩としては重い）
   if (/について(調べる|検討する|考える)$/.test(a)) score -= 6;
 
   return score;
 }
 
-/**
- * ✅ AI出力が薄い/壊れた時のフォールバック（完全に抽象）
- * - 特定ドメインに寄せない
- * - 「考える」→「ルート決め」→「物理的に手が動く」→「予算仮置き」→「5分着手」
- */
 function contentAwareFallback(_cleaned: string): { category: string; action: string }[] {
   return [
     { category: "目的", action: "理想の完了状態を1文で書く" },
@@ -427,11 +413,6 @@ function contentAwareFallback(_cleaned: string): { category: string; action: str
   ].map((x) => ({ ...x, action: normalizeTodoText(x.action) }));
 }
 
-/**
- * ✅ 初回5つ：
- * - 必須カテゴリ（目的/予算感/準備/段取り）を優先して1個ずつ
- * - その上で「最初の一歩」スコアが高いものを上位から埋める
- */
 function pickInitial5FromAnalysis(aiRaw: string): ChecklistItem[] {
   const cleaned = sanitizeAnalysis(aiRaw);
   const onlyBreakdown = extractBreakdownSection(cleaned);
@@ -1084,9 +1065,9 @@ export default function ListDetailPage() {
 - 代わりに「何をどうする」まで書く（例：アプリを開く、検索キーワードを3つ書く、書類を1か所に集める）
 `.trim();
 
-      const noteBlock = (target.note || "").trim()
-        ? `\n\n追記（ユーザーの追加情報）:\n${target.note.trim()}\n`
-        : "";
+      // ✅ TypeScript厳格対策：noteを一回string化してから使う
+      const noteText = (target.note ?? "").trim();
+      const noteBlock = noteText ? `\n\n追記（ユーザーの追加情報）:\n${noteText}\n` : "";
 
       const res = await fetch("/api/ai/breakdown", {
         method: "POST",
