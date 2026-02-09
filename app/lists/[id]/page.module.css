@@ -1,3 +1,4 @@
+/* app/lists/[id]/page.module.css */
 .main {
   min-height: 100vh;
   padding: 0 0 60px;
@@ -146,16 +147,6 @@
   line-height: 1.75;
 }
 
-.infoNote {
-  margin: 10px 0 0;
-  padding: 10px 12px;
-  border-radius: 14px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  background: rgba(255, 255, 255, 0.7);
-  font-weight: 900;
-  opacity: 0.85;
-}
-
 .textarea {
   width: 100%;
   margin-top: 12px;
@@ -198,8 +189,6 @@
   }
 }
 
-
-
 .pre {
   margin-top: 12px;
   padding: 12px;
@@ -238,26 +227,23 @@
 }
 
 .btnGhost {
-  background: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.7);
 }
 
 .btnDanger {
-  background: rgba(255, 120, 120, 0.18);
-  border-color: rgba(255, 120, 120, 0.28);
+  background: rgba(255, 120, 120, 0.28);
+  border-color: rgba(255, 120, 120, 0.35);
+}
+
+.btnWarn {
+  background: rgba(255, 210, 120, 0.30);
+  border-color: rgba(255, 190, 90, 0.35);
 }
 
 .btnDisabled {
-  background: rgba(200, 200, 210, 0.35);
-  border-color: rgba(0, 0, 0, 0.10);
+  background: rgba(0, 0, 0, 0.06);
+  opacity: 0.55;
   cursor: not-allowed;
-  opacity: 0.75;
-}
-
-/* ✅ 「もう次がない」用（クリックしても“案内”できるよう cursor は pointer のまま） */
-.btnWarn {
-  background: rgba(200, 200, 210, 0.25);
-  border-color: rgba(0, 0, 0, 0.10);
-  opacity: 0.9;
 }
 
 .btnPrimary:hover,
@@ -267,444 +253,204 @@
   border-color: rgba(0, 0, 0, 0.22);
 }
 
-.listBox {
-  margin-top: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.tag {
-  display: inline-flex;
-  align-items: center;
-  border-radius: 999px;
-  padding: 3px 8px;
-  border: 1px solid rgba(0, 0, 0, 0.10);
-  background: rgba(255, 255, 255, 0.85);
-  font-weight: 900;
-  font-size: 11px;
-  opacity: 0.9;
-  white-space: nowrap;
-}
-
-.statusPill {
-  display: inline-flex;
-  align-items: center;
-  border-radius: 999px;
-  padding: 3px 8px;
-  border: 1px solid rgba(0, 0, 0, 0.10);
-  font-weight: 900;
-  font-size: 11px;
-  opacity: 0.95;
-  white-space: nowrap;
-}
-
-.statusUnknown {
-  background: rgba(210, 210, 220, 0.7);
-}
-
-.statusLater {
-  background: rgba(210, 190, 255, 0.55);
-}
-
-.itemRow {
-  display: flex;
-  gap: 10px;
-  align-items: flex-start;
-  justify-content: space-between;
-  border-radius: 14px;
+.error {
+  margin-top: 10px;
   padding: 10px 12px;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  background: rgba(255, 255, 255, 0.7);
-}
-
-.groupRow {
-  background: rgba(255, 245, 210, 0.55);
-}
-
-.statusRowUnknown {
-  outline: 2px dashed rgba(0, 0, 0, 0.12);
-}
-
-.statusRowLater {
-  outline: 2px dashed rgba(120, 80, 255, 0.18);
-}
-
-.itemLabel {
-  display: flex;
-  gap: 10px;
-  align-items: flex-start;
-  line-height: 1.6;
-  font-weight: 800;
-  flex: 1;
-  flex-wrap: wrap;
-}
-
-.itemDone {
-  text-decoration: line-through;
-  opacity: 0.55;
-}
-
-.groupTitle {
-  font-weight: 900;
-  opacity: 0.9;
-}
-
-.itemActions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.btnMiniPrimary,
-.btnMiniGhost,
-.btnMiniLater,
-.btnMiniRevive {
-  border-radius: 999px;
-  padding: 8px 10px;
-  font-size: 12px;
-  font-weight: 900;
-  cursor: pointer;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-}
-
-.btnMiniPrimary {
-  background: rgba(180, 220, 255, 0.40);
-  border-color: rgba(120, 180, 255, 0.35);
-}
-
-.btnMiniGhost {
-  background: rgba(255, 255, 255, 0.85);
-}
-
-.btnMiniLater {
-  background: rgba(210, 190, 255, 0.45);
-  border-color: rgba(150, 120, 255, 0.25);
-}
-
-.btnMiniRevive {
-  background: rgba(199, 255, 217, 0.40);
-  border-color: rgba(120, 220, 160, 0.30);
-}
-
-.btnMiniPrimary:hover,
-.btnMiniGhost:hover,
-.btnMiniLater:hover,
-.btnMiniRevive:hover {
-  border-color: rgba(0, 0, 0, 0.22);
-}
-
-/* ゴール */
-.goalBox {
-  margin-top: 10px;
-  padding: 12px;
   border-radius: 14px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  background: rgba(255, 255, 255, 0.65);
-}
-
-.goalLine {
-  display: flex;
-  gap: 10px;
-  align-items: flex-start;
-  line-height: 1.7;
-  font-weight: 800;
-  margin: 6px 0;
-}
-
-.goalBullet {
+  border: 1px solid rgba(255, 120, 120, 0.40);
+  background: rgba(255, 120, 120, 0.18);
   font-weight: 900;
-  opacity: 0.8;
 }
 
-.goalText {
-  flex: 1;
-}
-
-/* KPI */
-.kpiRow {
-  margin-top: 10px;
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr 1.2fr;
-  gap: 10px;
-  align-items: center;
-}
-
-.overallRow {
-  margin-top: 12px;
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr 1.2fr;
-  gap: 10px;
-  align-items: center;
-}
-
-.kpi,
-.kpiWide {
+.toast {
+  position: sticky;
+  top: 10px;
+  z-index: 5;
+  margin: 0 auto;
+  max-width: 980px;
+  padding: 10px 12px;
   border-radius: 14px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  background: rgba(255, 255, 255, 0.7);
-  padding: 10px;
-}
-
-.kpiLabel {
-  font-size: 11px;
-  font-weight: 900;
-  opacity: 0.7;
-}
-
-.kpiValue {
-  font-size: 20px;
-  font-weight: 900;
-  margin-top: 4px;
-}
-
-.progressBar {
-  margin-top: 8px;
-  height: 10px;
-  border-radius: 999px;
   border: 1px solid rgba(0, 0, 0, 0.10);
-  background: rgba(255, 255, 255, 0.7);
-  overflow: hidden;
-}
-
-.progressFill {
-  height: 100%;
-  background: rgba(255, 170, 90, 0.75);
-}
-
-.kpiHint {
-  margin-top: 6px;
-  font-size: 12px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
   font-weight: 900;
-  opacity: 0.75;
-}
-
-/* 保留ボード */
-.parkingBox {
-  margin-top: 12px;
-  border-radius: 16px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  background: rgba(255, 255, 255, 0.62);
-  padding: 12px;
-}
-
-.parkingHead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.parkingTitle {
-  font-weight: 900;
-  display: flex;
-  gap: 10px;
-  align-items: baseline;
-  flex-wrap: wrap;
-}
-
-.parkingMeta {
-  opacity: 0.7;
-  font-weight: 900;
-  font-size: 12px;
-}
-
-.parkingBody {
-  margin-top: 10px;
-}
-
-.parkingSection {
-  margin-top: 10px;
-}
-
-.parkingSectionTitle {
-  font-weight: 900;
-  opacity: 0.85;
-  margin-bottom: 6px;
-}
-
-.parkingList {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.parkingItem {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
-  border-radius: 12px;
-  padding: 8px 10px;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  background: rgba(255, 255, 255, 0.7);
-}
-
-.parkingResolved {
-  opacity: 0.75;
-}
-
-.parkingText {
-  font-weight: 900;
-  opacity: 0.9;
-}
-
-.parkingRight {
-  margin-left: auto;
-  font-weight: 900;
-  opacity: 0.65;
-  font-size: 12px;
-}
-
-/* トグル */
-.toggleRow {
-  display: flex;
-  gap: 14px;
-  flex-wrap: wrap;
-  margin-top: 10px;
 }
 
 .toggle {
   display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  font-weight: 900;
+  opacity: 0.85;
+}
+
+.goalList {
+  margin: 10px 0 0;
+  padding-left: 18px;
+  line-height: 1.75;
+}
+
+.goalItem {
+  margin: 6px 0;
+  font-weight: 900;
+}
+
+.todoList {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.todoRow,
+.todoGroup {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.todoGroup {
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.todoLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.todoRight {
+  display: flex;
   align-items: center;
   gap: 8px;
-  font-weight: 900;
-  opacity: 0.9;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
-.error {
-  margin: 10px 0 0;
-  color: #b00020;
-  font-weight: 900;
+.checkbox {
+  width: 18px;
+  height: 18px;
 }
 
-.errorBox {
-  margin-top: 20px;
-  padding: 14px;
-  border-radius: 14px;
-  border: 1px solid rgba(255, 120, 120, 0.35);
-  background: rgba(255, 120, 120, 0.12);
+.groupDot {
+  opacity: 0.65;
   font-weight: 900;
 }
 
-.linkBtn {
-  display: inline-block;
-  margin-top: 12px;
-  text-decoration: none;
-  color: inherit;
-  font-weight: 900;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  background: rgba(255, 255, 255, 0.85);
-  padding: 10px 12px;
-  border-radius: 12px;
-}
-
-.toast {
-  position: fixed;
-  left: 50%;
-  bottom: 16px;
-  transform: translateX(-50%);
-  background: rgba(0, 0, 0, 0.78);
-  color: #fff;
-  padding: 10px 12px;
+.cat {
+  display: inline-flex;
   border-radius: 999px;
+  padding: 5px 8px;
+  border: 1px solid rgba(0, 0, 0, 0.10);
+  background: rgba(255, 255, 255, 0.75);
   font-weight: 900;
-  z-index: 40;
+  font-size: 12px;
 }
 
-@media (max-width: 720px) {
-  .kpiRow,
-  .overallRow {
-    grid-template-columns: 1fr 1fr;
-  }
-  .kpiWide {
-    grid-column: 1 / -1;
-  }
-  .parkingRight {
-    margin-left: 0;
-  }
+/* ✅ ToDoの文字を大きく（ボタンに負けないように） */
+.todoText {
+  font-weight: 900;
+  font-size: 17px;
+  line-height: 1.5;
 }
 
-@media (prefers-color-scheme: dark) {
-  .main {
-    background:
-      radial-gradient(1200px 700px at 20% 0%, rgba(255, 122, 175, 0.22), transparent 55%),
-      radial-gradient(1200px 700px at 90% 10%, rgba(120, 187, 255, 0.22), transparent 55%),
-      radial-gradient(1200px 700px at 40% 110%, rgba(140, 255, 182, 0.16), transparent 60%),
-      linear-gradient(180deg, #0f0f14, #12121a);
-    color: rgba(255, 255, 255, 0.92);
-  }
+.todoTextDone {
+  font-weight: 900;
+  font-size: 17px;
+  line-height: 1.5;
+  opacity: 0.6;
+  text-decoration: line-through;
+}
 
-  .badge,
-  .navLink,
-  .card,
-  .textarea,
-  .textInput,
-  .btnGhost,
-  .backBtn,
-  .linkBtn,
-  .itemRow,
-  .pre,
-  .tag,
-  .statusPill,
-  .goalBox,
-  .kpi,
-  .kpiWide,
-  .parkingBox,
-  .parkingItem,
-  .infoNote {
-    background: rgba(20, 20, 28, 0.62);
-    border-color: rgba(255, 255, 255, 0.14);
-  }
+.tagUnknown,
+.tagLater {
+  display: inline-flex;
+  border-radius: 999px;
+  padding: 5px 8px;
+  border: 1px solid rgba(0, 0, 0, 0.10);
+  background: rgba(255, 255, 255, 0.75);
+  font-weight: 900;
+  font-size: 12px;
+}
 
-  .groupRow {
-    background: rgba(70, 60, 20, 0.35);
-  }
+.tagUnknown {
+  background: rgba(163, 216, 255, 0.35);
+  border-color: rgba(163, 216, 255, 0.45);
+}
 
-  .btnPrimary {
-    background: rgba(255, 180, 120, 0.22);
-    border-color: rgba(255, 180, 120, 0.26);
-  }
+.tagLater {
+  background: rgba(255, 210, 120, 0.30);
+  border-color: rgba(255, 190, 90, 0.40);
+}
 
-  .btnWarn {
-    background: rgba(60, 60, 80, 0.28);
-    border-color: rgba(255, 255, 255, 0.12);
-  }
+/* ✅ 追記欄（ToDoメモ） */
+.noteInput {
+  min-width: 260px;
+  max-width: 520px;
+  width: min(520px, 100%);
+  border-radius: 12px;
+  padding: 8px 10px;
+  border: 1px solid rgba(0, 0, 0, 0.10);
+  background: rgba(255, 255, 255, 0.85);
+  outline: none;
+  font-weight: 800;
+  font-size: 13px;
+  opacity: 0.92;
+}
 
-  .btnMiniPrimary,
-  .btnMiniGhost,
-  .btnMiniLater,
-  .btnMiniRevive {
-    background: rgba(20, 20, 28, 0.62);
-    border-color: rgba(255, 255, 255, 0.14);
-  }
+.noteInput:focus {
+  border-color: rgba(0, 0, 0, 0.22);
+  box-shadow: 0 0 0 4px rgba(163, 216, 255, 0.18);
+}
 
-  .statusUnknown {
-    background: rgba(70, 70, 90, 0.55);
-  }
+.noteBadge {
+  display: inline-flex;
+  border-radius: 999px;
+  padding: 5px 8px;
+  border: 1px solid rgba(0, 0, 0, 0.10);
+  background: rgba(199, 255, 217, 0.28);
+  font-weight: 900;
+  font-size: 12px;
+}
 
-  .statusLater {
-    background: rgba(90, 70, 120, 0.55);
-  }
+.parkList {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
 
-  .btnDanger {
-    background: rgba(255, 120, 120, 0.16);
-    border-color: rgba(255, 120, 120, 0.22);
-  }
+.parkRow,
+.parkRowResolved {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: rgba(255, 255, 255, 0.68);
+}
 
-  .btnDisabled {
-    background: rgba(60, 60, 80, 0.35);
-    border-color: rgba(255, 255, 255, 0.10);
-  }
+.parkRowResolved {
+  opacity: 0.75;
+}
 
-  .textarea:focus,
-  .textInput:focus {
-    box-shadow: 0 0 0 4px rgba(255, 185, 120, 0.14);
-  }
+.parkLeft {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
 
-  .error {
-    color: #ff6b81;
-  }
+.parkRight {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }

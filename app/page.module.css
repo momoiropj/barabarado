@@ -1,0 +1,117 @@
+/* app/page.module.css */
+.main {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background:
+    radial-gradient(1200px 700px at 20% 0%, rgba(255, 179, 205, 0.35), transparent 55%),
+    radial-gradient(1200px 700px at 90% 10%, rgba(163, 216, 255, 0.35), transparent 55%),
+    radial-gradient(1200px 700px at 40% 110%, rgba(199, 255, 217, 0.25), transparent 60%),
+    linear-gradient(180deg, #fff7fb, #f7fbff);
+  color: #1d1b20;
+}
+
+.card {
+  width: min(520px, 100%);
+  border-radius: 18px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+  padding: 18px;
+}
+
+.brand {
+  font-weight: 900;
+  opacity: 0.85;
+  letter-spacing: 0.2px;
+}
+
+.title {
+  margin-top: 10px;
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.desc {
+  margin-top: 8px;
+  line-height: 1.7;
+  opacity: 0.9;
+  font-weight: 700;
+}
+
+.muted {
+  opacity: 0.7;
+}
+
+.row {
+  margin-top: 14px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.input {
+  flex: 1 1 220px;
+  border-radius: 14px;
+  padding: 12px 12px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: rgba(255, 255, 255, 0.92);
+  outline: none;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.input:focus {
+  border-color: rgba(0, 0, 0, 0.24);
+  box-shadow: 0 0 0 4px rgba(255, 185, 120, 0.18);
+}
+
+.btn {
+  border-radius: 14px;
+  padding: 12px 14px;
+  font-weight: 900;
+  cursor: pointer;
+  border: 1px solid rgba(255, 140, 90, 0.35);
+  background: rgba(255, 180, 120, 0.35);
+  white-space: nowrap;
+}
+
+.btn:hover {
+  border-color: rgba(0, 0, 0, 0.22);
+}
+
+.error {
+  margin-top: 10px;
+  color: #b00020;
+  font-weight: 900;
+}
+
+.footer {
+  margin-top: 14px;
+  opacity: 0.75;
+  font-weight: 800;
+  line-height: 1.6;
+}
+
+@media (prefers-color-scheme: dark) {
+  .main {
+    background:
+      radial-gradient(1200px 700px at 20% 0%, rgba(255, 122, 175, 0.22), transparent 55%),
+      radial-gradient(1200px 700px at 90% 10%, rgba(120, 187, 255, 0.22), transparent 55%),
+      radial-gradient(1200px 700px at 40% 110%, rgba(140, 255, 182, 0.16), transparent 60%),
+      linear-gradient(180deg, #0f0f14, #12121a);
+    color: rgba(255, 255, 255, 0.92);
+  }
+  .card,
+  .input {
+    background: rgba(20, 20, 28, 0.62);
+    border-color: rgba(255, 255, 255, 0.14);
+  }
+  .error {
+    color: #ff6b81;
+  }
+  .input:focus {
+    box-shadow: 0 0 0 4px rgba(255, 185, 120, 0.14);
+  }
+}

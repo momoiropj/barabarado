@@ -11,6 +11,10 @@ type ListRow = {
   title: string;
   createdAt?: string;
   updatedAt?: string;
+
+  // ✅ 追加：完了状態
+  isCompleted?: boolean;
+  completedAt?: string;
 };
 
 type ItemStatus = "normal" | "unknown" | "later";
@@ -92,6 +96,8 @@ function loadGuestLists(): ListRow[] {
       title: String(x?.title ?? ""),
       createdAt: String(x?.createdAt ?? ""),
       updatedAt: String(x?.updatedAt ?? ""),
+      isCompleted: Boolean(x?.isCompleted ?? false),
+      completedAt: typeof x?.completedAt === "string" ? x.completedAt : "",
     }))
     .filter((x) => x.id && x.title);
 }
@@ -661,6 +667,7 @@ export default function ListDetailPage() {
         updatedAt: new Date().toISOString(),
       };
       localStorage.setItem(GUEST_LISTS_KEY, JSON.stringify(lists));
+      setList(lists[idx]); // ✅ 表示側も更新
     }
   }, [
     listId,
@@ -676,6 +683,29 @@ export default function ListDetailPage() {
     parked,
     list?.title,
   ]);
+
+  const toggleListCompleted = () => {
+    const lists = loadGuestLists();
+    const idx = lists.findIndex((l) => l.id === listId);
+    if (idx < 0) return;
+
+    const now = new Date().toISOString();
+    const cur = lists[idx];
+    const nextCompleted = !Boolean(cur.isCompleted);
+
+    const next: ListRow = {
+      ...cur,
+      isCompleted: nextCompleted,
+      completedAt: nextCompleted ? now : "",
+      updatedAt: now,
+    };
+
+    lists[idx] = next;
+    localStorage.setItem(GUEST_LISTS_KEY, JSON.stringify(lists));
+    setList(next);
+
+    showToast(nextCompleted ? "このリストを「完了」にした" : "完了を解除した");
+  };
 
   const clearAll = () => {
     setDraft("");
@@ -784,9 +814,12 @@ export default function ListDetailPage() {
 
   const hasNextCandidates = nextCandidateRemaining > 0;
 
-  const issuedTotal = archivedCreated + totalTasks;
+  const archivedCreatedSafe = Number(archivedCreated || 0) || 0;
+  const archivedDoneSafe = Number(archivedDone || 0) || 0;
+
+  const issuedTotal = archivedCreatedSafe + totalTasks;
   const expectedTotal = Math.max(l3Count, issuedTotal);
-  const doneTotal = archivedDone + doneTasks;
+  const doneTotal = archivedDoneSafe + doneTasks;
   const remainingExpected = Math.max(expectedTotal - doneTotal, 0);
   const overallPct = expectedTotal > 0 ? Math.round((doneTotal / expectedTotal) * 100) : 0;
 
@@ -1065,7 +1098,6 @@ export default function ListDetailPage() {
 - 代わりに「何をどうする」まで書く（例：アプリを開く、検索キーワードを3つ書く、書類を1か所に集める）
 `.trim();
 
-      // ✅ TypeScript厳格対策：noteを一回string化してから使う
       const noteText = (target.note ?? "").trim();
       const noteBlock = noteText ? `\n\n追記（ユーザーの追加情報）:\n${noteText}\n` : "";
 
@@ -1311,6 +1343,7 @@ export default function ListDetailPage() {
   };
 
   const topTitle = list?.title || "リスト";
+
   const lastUpdated = useMemo(() => {
     const d = loadDetail(listId);
     return d.updatedAt ? formatDateTime(d.updatedAt) : "";
@@ -1328,6 +1361,8 @@ export default function ListDetailPage() {
     parked,
   ]);
 
+  const isCompleted = Boolean(list?.isCompleted);
+
   return (
     <main className={styles.main}>
       <header className={styles.header}>
@@ -1337,14 +1372,6 @@ export default function ListDetailPage() {
           </button>
 
           <div className={styles.headerRight}>
-            <div className={styles.badges}>
-              <span className={styles.badge}>Stage: {stage || 0}</span>
-              <span className={styles.badge}>進捗: {progressPct}%</span>
-              <span className={styles.badge}>全体: {overallPct}%</span>
-              <span className={styles.badge}>残り見込み: {remainingExpected}</span>
-              <span className={styles.badge}>次候補: {nextCandidateRemaining}</span>
-            </div>
-
             <nav className={styles.nav}>
               <Link className={styles.navLink} href="/concept">
                 コンセプト
@@ -1462,11 +1489,10 @@ export default function ListDetailPage() {
             </div>
           </div>
 
-          <p className={styles.pMuted}>
-            ここで入れたToDoは守る。AI分析は「追加」しかしない（既存は消さない）。
-          </p>
+          <p className={styles.pMuted}>ここで入れたToDoは守る。AI分析は「追加」しかしない（既存は消さない）。</p>
         </section>
 
+        {/* ✅ 進捗はここに集約（ページ上部へ戻る必要なし） */}
         <section className={styles.card}>
           <div className={styles.cardHead}>
             <h2 className={styles.h2}>ToDo（いまのStage）</h2>
@@ -1475,46 +1501,77 @@ export default function ListDetailPage() {
             </span>
           </div>
 
+          {/* ✅ 進捗バッジ＋完了ボタン（ToDoブロック内） */}
+          <div className={styles.badges} style={{ margin: "10px 0 14px 0", gap: "10px", flexWrap: "wrap" as any }}>
+            <span className={styles.badge}>状態: {isCompleted ? "完了" : "着手中"}</span>
+            <span className={styles.badge}>Stage: {stage || 0}</span>
+            <span className={styles.badge}>進捗: {progressPct}%</span>
+            <span className={styles.badge}>全体: {overallPct}%</span>
+            <span className={styles.badge}>残り見込み: {remainingExpected}</span>
+            <span className={styles.badge}>次候補: {nextCandidateRemaining}</span>
+
+            <span style={{ flex: 1 }} />
+
+            <button className={styles.btnGhost} onClick={toggleListCompleted} disabled={busy}>
+              {isCompleted ? "完了を解除" : "このリストを完了にする"}
+            </button>
+          </div>
+
           {taskItems.length ? (
-            <div className={styles.todoList}>
+            <div className={styles.todoList} style={{ marginTop: "6px" }}>
               {checklist.map((it) => {
                 const isGroup = (it.type ?? "task") === "group";
                 const isTask = !isGroup;
                 const depth = it.depth ?? 0;
                 const indentStyle = { marginLeft: `${Math.min(depth, 4) * 14}px` };
 
+                // ✅ 余白追加（CSSは触らずに、行ごとに見やすく）
+                const rowStyle: React.CSSProperties = {
+                  ...indentStyle,
+                  padding: "12px 12px",
+                  marginBottom: "14px",
+                  borderRadius: "12px",
+                };
+
                 return (
-                  <div key={it.id} className={isGroup ? styles.todoGroup : styles.todoRow} style={indentStyle}>
-                    <div className={styles.todoLeft}>
+                  <div key={it.id} className={isGroup ? styles.todoGroup : styles.todoRow} style={rowStyle}>
+                    <div className={styles.todoLeft} style={{ alignItems: "flex-start" }}>
+                      {/* 1行目：カテゴリ＋本文 */}
+                      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" as any }}>
+                        {isTask ? (
+                          <input
+                            type="checkbox"
+                            checked={it.done}
+                            onChange={() => toggleDone(it.id)}
+                            className={styles.checkbox}
+                          />
+                        ) : (
+                          <span className={styles.groupDot}>●</span>
+                        )}
+
+                        <span className={styles.cat}>{it.category || "未分類"}</span>
+
+                        <span className={it.done ? styles.todoTextDone : styles.todoText}>{it.text}</span>
+
+                        {it.status === "unknown" ? <span className={styles.tagUnknown}>わからない</span> : null}
+                        {it.status === "later" ? <span className={styles.tagLater}>あとまわし</span> : null}
+                      </div>
+
+                      {/* 2行目：追記（本文と分離して見やすく） */}
                       {isTask ? (
-                        <input
-                          type="checkbox"
-                          checked={it.done}
-                          onChange={() => toggleDone(it.id)}
-                          className={styles.checkbox}
-                        />
-                      ) : (
-                        <span className={styles.groupDot}>●</span>
-                      )}
-
-                      <span className={styles.cat}>{it.category || "未分類"}</span>
-
-                      <span className={it.done ? styles.todoTextDone : styles.todoText}>{it.text}</span>
-
-                      {it.status === "unknown" ? <span className={styles.tagUnknown}>わからない</span> : null}
-                      {it.status === "later" ? <span className={styles.tagLater}>あとまわし</span> : null}
-
-                      {isTask ? (
-                        <input
-                          className={styles.noteInput}
-                          value={it.note ?? ""}
-                          onChange={(e) => setNote(it.id, e.target.value)}
-                          placeholder="追記（例：期限の希望 / 使いたい方法 / どこが不明か / 使える時間 など）"
-                        />
+                        <div style={{ width: "100%", marginTop: "10px" }}>
+                          <input
+                            className={styles.noteInput}
+                            value={it.note ?? ""}
+                            onChange={(e) => setNote(it.id, e.target.value)}
+                            placeholder="追記（例：期限の希望 / 使いたい方法 / どこが不明か / 使える時間 など）"
+                            style={{ width: "100%" }}
+                          />
+                        </div>
                       ) : null}
                     </div>
 
-                    <div className={styles.todoRight}>
+                    <div className={styles.todoRight} style={{ gap: "10px" }}>
                       {isTask ? (
                         <>
                           <button
@@ -1548,7 +1605,7 @@ export default function ListDetailPage() {
             <p className={styles.pMuted}>まだToDoがない（AI分析で最初の5つが作られる）</p>
           )}
 
-          <div className={styles.row}>
+          <div className={styles.row} style={{ marginTop: "14px", gap: "14px" }}>
             <button
               className={hasNextCandidates ? styles.btnPrimary : styles.btnDisabled}
               onClick={generateNextStage}
@@ -1658,18 +1715,7 @@ export default function ListDetailPage() {
           />
         </section>
 
-        <section className={styles.card}>
-          <div className={styles.cardHead}>
-            <h2 className={styles.h2}>AI分析（表示）</h2>
-            <span className={styles.mini}>抽出元（そのまま表示）</span>
-          </div>
-
-          {aiResult.trim() ? (
-            <pre className={styles.pre}>{aiResult}</pre>
-          ) : (
-            <p className={styles.pMuted}>まだ分析がない</p>
-          )}
-        </section>
+        {/* ✅ AI分析表示は混乱を招くので、UIから完全に外した（内部では aiResult を保持して利用する） */}
       </div>
     </main>
   );

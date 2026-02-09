@@ -1,157 +1,158 @@
 // app/api/ai/breakdown/route.ts
-// NOTE: 「AI分析（下書き→ゴール&分解）」と「さらに分解（単一ToDo→サブToDo）」を同じエンドポイントで扱う
+import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-type JsonValue = null | boolean | number | string | JsonValue[] | { [k: string]: JsonValue };
+type BreakdownDraftReq = { text: string; context?: string };
+type BreakdownTodoReq = { todo: string; context?: string };
 
-function json(data: JsonValue, init?: ResponseInit) {
-  return new Response(JSON.stringify(data), {
-    ...init,
-    headers: {
-      "content-type": "application/json; charset=utf-8",
-      ...(init?.headers ?? {}),
-    },
-  });
+function isDraftReq(body: any): body is BreakdownDraftReq {
+  return body && typeof body.text === "string" && body.text.trim().length > 0;
 }
 
-function getEnv(name: string) {
+function isTodoReq(body: any): body is BreakdownTodoReq {
+  return body && typeof body.todo === "string" && body.todo.trim().length > 0;
+}
+
+function env(name: string, fallback?: string) {
   const v = process.env[name];
-  return typeof v === "string" && v.trim() ? v.trim() : undefined;
+  return (v && v.trim().length > 0 ? v : fallback) as string | undefined;
 }
 
-function safeText(v: unknown) {
-  if (typeof v !== "string") return "";
-  return v.replace(/\r\n/g, "\n");
+function buildSystemPrompt() {
+  // “ツールの人格”はここで固定（ただし出力フォーマットは user/context に従う）
+  return [
+    "あなたは『実行に強いToDo分解コーチ』。",
+    "ユーザーは、面倒・ストレス・不明瞭さで着手できないことがある。感情を否定せず、摩擦を下げてフラットに着手させる。",
+    "",
+    "【最重要：カテゴリ設計（必須）】",
+    "カテゴリ（L1）は必ず以下4つを含める：",
+    "- 目的（なぜやる/達成したいこと）",
+    "- 予算感（コスト・上限・レンジ）",
+    "- 準備（集める/用意/確認）",
+    "- 段取り（順番/担当/期限/手順）",
+    "必要なら追加カテゴリを増やしてよい（例：保留/未確定/リスク）。ただし上の4つは必須。",
+    "",
+    "【止まりがちな出力を禁止】",
+    "- 『言語化する』『調べる』だけで止めない。もし入れるなら対象を具体化する（例：『提出方法を選ぶ（オンライン/窓口）』）。",
+    "- どんなテーマでも『ルート選択 → 準備 → 実行 → 完了確認』の流れがToDoから読み取れるようにする。",
+    "",
+    "【日本語ルール】",
+    "- ToDo文は『〜する』で統一しない。自然な動詞で終える（決める/集める/出す/確認する/選ぶ/提出する/連絡する 等）。",
+    "- 破綻した語尾は禁止（例：『決めるする』）。",
+    "- 1項目は1アクション。短く、具体的に。",
+    "",
+    "【情報が少ないとき】",
+    "- 断定せず、一般的な前提を置いた“仮定ベース”で進める。",
+    "- 見込み（工数/期間/予算）は、ユーザーに調べさせず、一般的なレンジを先に提示する（目安）。",
+    "",
+    "【出力フォーマット】",
+    "- 具体的な出力フォーマットは、ユーザーの指示（context/プロンプト内のルール）を最優先で厳守する。",
+  ].join("\n");
 }
 
-/**
- * Chat Completions（互換）を叩いて、assistantのテキストを返す
- */
-async function callOpenAIChatCompletions(apiKey: string, model: string, prompt: string): Promise<string> {
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+function buildDefaultDraftFormatRules() {
+  return [
+    "【出力フォーマット（構造文法・厳守）】",
+    "- Markdownで出す",
+    "- 出すのは次の2セクションだけ：",
+    '  【3. 完了条件（目指すゴール）】…チェック式 "- [ ]" で3〜5個（状態を書く：〜になっている/〜が揃っている）',
+    "  【4. 分解（L1→L2→L3）】…L1はカテゴリ / L3は具体アクション",
+    "- L1 は最低4つ（目的/予算感/準備/段取り）",
+    '- L3 は必ず行頭に "L3:" を付ける（抽出しやすくするため）',
+    "- 質問形は禁止（？を出さない）",
+    "- 余計な前置き/注意書き/自分語りは禁止（いきなり本文）",
+  ].join("\n");
+}
+
+function buildDraftUserPrompt(text: string, context?: string) {
+  const rules = context?.trim() ? context.trim() : buildDefaultDraftFormatRules();
+  return [
+    "ユーザーの下書き（draft）を分析し、完了条件とカテゴリ分解を生成してください。",
+    "",
+    rules,
+    "",
+    "【下書き】",
+    text,
+  ].join("\n");
+}
+
+function buildTodoUserPrompt(todo: string, context?: string) {
+  return [
+    "単一ToDoを、ユーザーが着手できるレベルまで分解してください。",
+    "『言語化/調べる』で止まらず、ルート選択→準備→実行→確認までToDoに落としてください。",
+    "",
+    `【ToDo】\n${todo}`,
+    context && context.trim().length > 0 ? `\n【追加情報（制約/前提/気持ち/メモ）】\n${context.trim()}` : "",
+  ].join("\n");
+}
+
+async function callOpenAI(messages: Array<{ role: "system" | "user"; content: string }>) {
+  const apiKey = env("OPENAI_API_KEY");
+  if (!apiKey) {
+    return { ok: false as const, status: 500, text: "OPENAI_API_KEY is missing" };
+  }
+
+  const model = env("OPENAI_MODEL", "gpt-4o-mini")!;
+  const baseUrl = env("OPENAI_BASE_URL", "https://api.openai.com/v1")!;
+  const url = `${baseUrl.replace(/\/$/, "")}/chat/completions`;
+
+  const res = await fetch(url, {
     method: "POST",
     headers: {
-      authorization: `Bearer ${apiKey}`,
-      "content-type": "application/json",
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
       model,
-      temperature: 0.2,
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: prompt },
-      ],
+      temperature: 0.4,
+      messages,
     }),
   });
 
-  const raw = await res.text();
   if (!res.ok) {
-    throw new Error(`OpenAI error: ${res.status} ${res.statusText}\n${raw.slice(0, 2000)}`);
+    const raw = await res.text().catch(() => "");
+    return { ok: false as const, status: res.status, text: raw || `OpenAI error: ${res.status}` };
   }
 
-  try {
-    const data = JSON.parse(raw);
-    const content = data?.choices?.[0]?.message?.content;
-    return typeof content === "string" ? content : "";
-  } catch {
-    throw new Error(`OpenAI response parse failed\n${raw.slice(0, 2000)}`);
+  const data = (await res.json()) as any;
+  const content: string | undefined = data?.choices?.[0]?.message?.content;
+  if (!content || typeof content !== "string") {
+    return { ok: false as const, status: 500, text: "No content in OpenAI response" };
   }
-}
 
-/**
- * 重要：最初の方針（目的/予算感/準備/段取り）をカテゴリとして復活
- * 重要：語尾を機械的に「する」で統一しない（自然な日本語）
- */
-const SYSTEM_PROMPT = `
-あなたは「実行に強いToDo分解コーチ」。
-ユーザーの下書きから、実行できる粒度に分解し、次に何をすれば進むかを明確にする。
-
-【最重要方針：カテゴリ設計（必須）】
-- L1（カテゴリ）として、必ず次の4つを入れる：
-  1) 目的（なぜやる/何を達成したい）
-  2) 予算感（お金・コスト・上限）
-  3) 準備（集める/用意する/確認する）
-  4) 段取り（順番/誰に/いつまで/手順）
-- 必要なら追加カテゴリもOK（例：連絡、調査、手続き）。ただし上の4つは必須。
-
-【日本語ルール】
-- すべての行末を「する」に統一しない
-- 可能なら自然な動詞で終える（例：決める/買う/書く/作る/まとめる/確認する）
-- 「決めるする」「作るする」みたいな不自然な語尾は禁止
-
-【出力フォーマット（厳守）】
-- Markdownで出す
-- 出すのは次の2セクションだけ（順番・見出し名も同じ）：
-  【3. 完了条件（目指すゴール）】…チェック式 "- [ ]" で3〜5個
-  【4. 分解（L1→L2→L3）】…行単位で L1 / L2 / L3 を明記
-- L3 は必ず行頭に "L3:" を付ける（抽出用）
-- L3 は「いま自分ができる行動」だけ（抽象語・精神論・質問形は禁止）
-`.trim();
-
-function buildAnalysisPrompt(draft: string) {
-  return `
-下書きを読んで、上のルールに従って「ゴール」と「分解（カテゴリ設計あり）」を作ってください。
-
-【下書き】
-${draft}
-`.trim();
-}
-
-function buildDecomposePrompt(todo: string, context?: string) {
-  const ctx = (context ?? "").trim();
-  return `
-次の ToDo を、いますぐ着手できるサブToDo（L3）に分解して。
-カテゴリ設計の方針に沿って、どのカテゴリに入るかも明示して。
-
-【ToDo】
-${todo}
-
-${ctx ? `【補足（状況）】\n${ctx}\n` : ""}
-
-【出力フォーマット（厳守）】
-- Markdown
-- 出すのは【4. 分解（L1→L2→L3）】だけ
-- L1 は「目的/予算感/準備/段取り」に必ず紐づける
-- L3 は必ず "L3:" で始める
-- 行末は「する」で統一しない（自然な日本語）
-`.trim();
+  return { ok: true as const, status: 200, text: content };
 }
 
 export async function POST(req: Request) {
+  let body: any;
   try {
-    const apiKey = getEnv("OPENAI_API_KEY");
-    if (!apiKey) {
-      return json(
-        { error: "OPENAI_API_KEY が未設定。VercelのEnvironment Variables（Production）に追加してね。" },
-        { status: 500 }
-      );
-    }
-
-    const model = getEnv("OPENAI_MODEL") ?? "gpt-4o-mini";
-
-    const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
-    const text = safeText(body?.text);
-    const todo = safeText(body?.todo);
-    const context = safeText(body?.context);
-
-    // 1) 下書き分析モード（推奨）
-    if (text.trim()) {
-      const prompt = buildAnalysisPrompt(text.trim());
-      const out = await callOpenAIChatCompletions(apiKey, model, prompt);
-      return json({ text: out });
-    }
-
-    // 2) 単一ToDo分解モード
-    if (todo.trim()) {
-      const prompt = buildDecomposePrompt(todo.trim(), context);
-      const out = await callOpenAIChatCompletions(apiKey, model, prompt);
-      return json({ text: out });
-    }
-
-    return json({ error: "入力が空。{ text }（下書き）か { todo }（単一ToDo）を送ってね。" }, { status: 400 });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return json({ error: msg }, { status: 500 });
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ text: "Invalid JSON body" }, { status: 400 });
   }
+
+  if (!isDraftReq(body) && !isTodoReq(body)) {
+    return NextResponse.json(
+      { text: "Body must be { text: string, context?: string } OR { todo: string, context?: string }" },
+      { status: 400 }
+    );
+  }
+
+  const system = buildSystemPrompt();
+  const user = isDraftReq(body)
+    ? buildDraftUserPrompt(body.text, body.context)
+    : buildTodoUserPrompt(body.todo, body.context);
+
+  const result = await callOpenAI([
+    { role: "system", content: system },
+    { role: "user", content: user },
+  ]);
+
+  if (!result.ok) {
+    return NextResponse.json({ text: result.text }, { status: result.status });
+  }
+
+  return NextResponse.json({ text: result.text }, { status: 200 });
 }
