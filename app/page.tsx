@@ -24,6 +24,7 @@ export default function HomePage() {
 
   const submit = () => {
     setError("");
+
     if (code.trim() === PASSCODE) {
       try {
         localStorage.setItem(PASS_OK_KEY, "1");
@@ -34,6 +35,7 @@ export default function HomePage() {
       router.push("/lists");
       return;
     }
+
     setError("パスコードが違うみたい。もう一回！");
   };
 
@@ -50,16 +52,24 @@ export default function HomePage() {
         <div className={styles.row}>
           <input
             className={styles.input}
+            type="password"
             inputMode="numeric"
             pattern="[0-9]*"
-            placeholder="0214"
+            maxLength={4}
+            autoComplete="one-time-code"
+            placeholder="4桁のパスコード"
             value={code}
-            onChange={(e) => setCode(e.target.value)}
+            onChange={(e) => {
+              // 数字以外は弾く（コピペ対策も込み）
+              const v = e.target.value.replace(/[^\d]/g, "").slice(0, 4);
+              setCode(v);
+            }}
             onKeyDown={(e) => {
               if (e.key === "Enter") submit();
             }}
             aria-label="passcode"
           />
+
           <button className={styles.btn} onClick={submit} type="button">
             入る
           </button>
