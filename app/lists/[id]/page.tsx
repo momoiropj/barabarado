@@ -77,7 +77,7 @@ function normalizeTodoText(s: string) {
 
   // 先頭の箇条書き記号などを除去
   t = t.replace(/^[-*・●\s]+/, "");
-  t = t.replace(/^(\d+[\.\)]\s+)/, "");
+  t = t.replace(/^(\d+[\.\\)]\s+)/, "");
 
   // 末尾の句点だけ削る（「。」を連打しないため）
   t = t.replace(/[。．]+$/, "");
@@ -146,6 +146,81 @@ function extractGoalsFromAI(raw: string): string[] {
   return out.slice(0, 6);
 }
 
+function normalizeCategoryName(raw: string): string {
+  let t = (raw ?? "").trim();
+
+  // 余計な装飾を軽く剥がす
+  t = t.replace(/^カテゴリ(?:名)?[：:]\s*/i, "");
+  t = t.replace(/^カテゴリー[：:]\s*/i, "");
+
+  // 括弧に包まれてたら外す
+  t = t.replace(/^\[(.+)\]$/, "$1");
+  t = t.replace(/^【(.+)】$/, "$1");
+
+  // 末尾コロンは削る
+  t = t.replace(/[：:]+$/, "").trim();
+
+  // 引用っぽいのを剥がす
+  t = t.replace(/^["'「『](.+?)["'」』]$/, "$1").trim();
+
+  return t || "未分類";
+}
+
+function isBadCategoryName(cat: string): boolean {
+  const t = (cat ?? "").trim();
+  if (!t) return true;
+
+  // 章タイトルやメタっぽい単語はカテゴリとして扱わない
+  const bad = ["分解", "ゴール", "完了条件", "入力", "出力", "進め方", "ルール", "チェック", "候補", "分析"];
+  if (bad.some((b) => t.includes(b))) return true;
+
+  // 長すぎるのもカテゴリとしては不自然（文章になってる可能性）
+  if (t.length > 24) return true;
+
+  return false;
+}
+
+function splitInlineCategoryFromText(raw: string): { category: string | null; text: string } {
+  const t = (raw ?? "").trim();
+
+  // 例）[準備] 〇〇 / 【準備】〇〇
+  const m1 = t.match(/^\[(.+?)\]\s*(.+)$/);
+  if (m1?.[1] && m1?.[2]) return { category: normalizeCategoryName(m1[1]), text: normalizeTodoText(m1[2]) };
+
+  const m2 = t.match(/^【(.+?)】\s*(.+)$/);
+  if (m2?.[1] && m2?.[2]) return { category: normalizeCategoryName(m2[1]), text: normalizeTodoText(m2[2]) };
+
+  return { category: null, text: t };
+}
+
+/** フォールバック：カテゴリ無しでも「-」箇条書きだけ拾う */
+function extractPlainBullets(raw: string): string[] {
+  const t = (raw ?? "").trim();
+  if (!t) return [];
+
+  const lines = t.split("\n");
+  const out: string[] = [];
+  for (const lineRaw of lines) {
+    const line = lineRaw.trim();
+    if (!line) continue;
+    if (line.startsWith("【")) continue;
+    if (/^#/.test(line)) continue;
+    if (/^- \[[ xX]\]/.test(line)) continue;
+
+    const m = line.match(/^[-*・●]\s*(.+)$/);
+    if (!m?.[1]) continue;
+
+    const action = normalizeTodoText(m[1]);
+    if (!action) continue;
+
+    // 「カテゴリ:」みたいなのを誤爆で拾わない
+    if (/^カテゴリ(?:名)?[：:]/.test(action) || /^カテゴリー[：:]/.test(action)) continue;
+
+    out.push(action);
+  }
+  return out;
+}
+
 /** 【4. 分解】の候補を抽出（ゴールのチェック行などは拾わない） */
 function extractActionCandidates(raw: string): Array<{ category: string; action: string }> {
   const t = (raw ?? "").trim();
@@ -156,12 +231,23 @@ function extractActionCandidates(raw: string): Array<{ category: string; action:
   const idx4 = t.indexOf("【4】");
   if (idx4 >= 0) area = t.slice(idx4);
 
-  const lines = area.split("\n").map((x) => x.trim());
+  const rawLines = area.split("\n");
 
   const out: Array<{ category: string; action: string }> = [];
   let currentCat = "";
 
-  for (const line of lines) {
+  const nextNonEmpty = (from: number) => {
+    for (let j = from; j < rawLines.length; j++) {
+      const ln = rawLines[j];
+      if (ln && ln.trim()) return { raw: ln, idx: j };
+    }
+    return null;
+  };
+
+  for (let i = 0; i < rawLines.length; i++) {
+    const lineRaw = rawLines[i] ?? "";
+    const indent = lineRaw.length - lineRaw.trimStart().length;
+    const line = lineRaw.trim();
     if (!line) continue;
 
     // 見出しっぽいのはスキップ
@@ -171,23 +257,130 @@ function extractActionCandidates(raw: string): Array<{ category: string; action:
     // ✅ ゴールのチェック行っぽいのは ToDo候補から除外（保険）
     if (/^- \[[ xX]\]/.test(line)) continue;
 
-    // カテゴリ見出し
-    const catMatch = line.match(/^\[(.+?)\]\s*$/);
-    if (catMatch?.[1]) {
-      currentCat = catMatch[1].trim();
+    // 1) カテゴリ見出し（いろんな書き方に対応）
+    const cat1 = line.match(/^\[(.+?)\]\s*$/);
+    const cat2 = line.match(/^【(.+?)】\s*$/);
+    const cat3 = line.match(/^(?:■|◆|▶|▷|▼|▽|★|☆)\s*(.+)$/);
+    const cat4 = line.match(/^カテゴリ(?:名)?[：:]\s*(.+)$/i);
+    const cat5 = line.match(/^カテゴリー[：:]\s*(.+)$/i);
+
+    const cat = normalizeCategoryName(
+      (cat1?.[1] ?? cat2?.[1] ?? cat4?.[1] ?? cat5?.[1] ?? cat3?.[1] ?? "").trim()
+    );
+
+    if ((cat1 || cat2 || cat3 || cat4 || cat5) && !isBadCategoryName(cat)) {
+      currentCat = cat;
       continue;
     }
 
-    // 箇条書き
+    // 2) 箇条書き
     const m = line.match(/^[-*・●]\s*(.+)$/);
     if (m?.[1]) {
-      const action = normalizeTodoText(m[1]);
-      if (action) out.push({ category: currentCat || "未分類", action });
+      let payload = m[1].trim();
+
+      // 「- [カテゴリ] タスク」形式
+      const in1 = payload.match(/^\[(.+?)\]\s*(.+)$/);
+      const in2 = payload.match(/^【(.+?)】\s*(.+)$/);
+      if (in1?.[1] && in1?.[2]) {
+        const c = normalizeCategoryName(in1[1]);
+        const a = normalizeTodoText(in1[2]);
+        if (a) out.push({ category: isBadCategoryName(c) ? currentCat || "未分類" : c, action: a });
+        continue;
+      }
+      if (in2?.[1] && in2?.[2]) {
+        const c = normalizeCategoryName(in2[1]);
+        const a = normalizeTodoText(in2[2]);
+        if (a) out.push({ category: isBadCategoryName(c) ? currentCat || "未分類" : c, action: a });
+        continue;
+      }
+
+      // 「- 準備」→ 次の行がインデントされた箇条書きならカテゴリ見出し扱い
+      const next = nextNonEmpty(i + 1);
+      if (indent === 0 && next) {
+        const nextIndent = next.raw.length - next.raw.trimStart().length;
+        const nextLine = next.raw.trim();
+        if (nextIndent > indent && /^[-*・●]\s+/.test(nextLine)) {
+          const c = normalizeCategoryName(payload);
+          if (!isBadCategoryName(c)) {
+            currentCat = c;
+            continue;
+          }
+        }
+      }
+
+      // 「準備: 〇〇」形式
+      const colon = payload.match(/^(.+?)[：:]\s*(.+)$/);
+      if (colon?.[1] && colon?.[2] && colon[1].trim().length <= 12) {
+        const c = normalizeCategoryName(colon[1]);
+        const a = normalizeTodoText(colon[2]);
+        if (a) out.push({ category: isBadCategoryName(c) ? currentCat || "未分類" : c, action: a });
+        continue;
+      }
+
+      const action = normalizeTodoText(payload);
+      if (!action) continue;
+
+      // カテゴリっぽい行を誤爆で ToDo にしない
+      const possibleCat = normalizeCategoryName(action);
+      if (!isBadCategoryName(possibleCat) && action === possibleCat && action.length <= 12) {
+        // 次の行が箇条書きならカテゴリ扱い
+        const n = nextNonEmpty(i + 1);
+        if (n && /^[-*・●]\s+/.test(n.raw.trim())) {
+          currentCat = possibleCat;
+          continue;
+        }
+      }
+
+      if (/^カテゴリ(?:名)?[：:]/.test(action) || /^カテゴリー[：:]/.test(action)) continue;
+
+      out.push({ category: currentCat || "未分類", action });
       continue;
     }
   }
 
   return out;
+}
+
+/** AI結果をもとに、既存ToDoのカテゴリやテキストを軽く修復 */
+function repairTodosFromAI(prevTodos: TodoItem[], aiText: string): TodoItem[] {
+  const cands = extractActionCandidates(aiText);
+
+  // action -> category（未分類以外だけ）
+  const map = new Map<string, string>();
+  for (const c of cands) {
+    const a = normalizeTodoText(c.action);
+    const cat = normalizeCategoryName(c.category);
+    if (!a) continue;
+    if (!isBadCategoryName(cat) && cat !== "未分類") {
+      map.set(a, cat);
+    }
+  }
+
+  let changed = false;
+
+  const next = prevTodos.map((t) => {
+    let nt = t;
+    const inline = splitInlineCategoryFromText(nt.text);
+    if (inline.category && inline.text !== nt.text) {
+      changed = true;
+      nt = { ...nt, text: inline.text };
+      if (!nt.category || nt.category === "未分類") {
+        nt = { ...nt, category: inline.category };
+      }
+    }
+
+    const key = normalizeTodoText(nt.text);
+    const mapped = map.get(key);
+
+    if (mapped && (!nt.category || nt.category === "未分類")) {
+      changed = true;
+      nt = { ...nt, category: mapped };
+    }
+
+    return nt;
+  });
+
+  return changed ? next : prevTodos;
 }
 
 function goalsToMarkdown(goals: string[]) {
@@ -223,20 +416,10 @@ function buildIssuePrompt({
   groups: GroupItem[];
   aiResult: string;
 }) {
-  const goalBlock = goals.length
-    ? `## ゴール（完了条件）\n\n${goalsToMarkdown(goals)}`
-    : `## ゴール（完了条件）\n\n（なし）`;
-
-  const todoBlock = todos.length
-    ? `## ToDo\n\n${todosToMarkdown(todos, groups)}`
-    : `## ToDo\n\n（なし）`;
-
-  // 分析は裏に持つ（画面では見せないが、プロンプト用途では残す）
-  const analysisBlock = aiResult.trim()
-    ? `## 参考（AIの構造メモ）\n\n\`\`\`markdown\n${aiResult.trim()}\n\`\`\``
-    : "";
-
-  const draftBlock = draft.trim() ? `## 下書き\n\n${draft.trim()}` : "";
+  const goalBlock = goals.length ? `## ゴール\n${goalsToMarkdown(goals)}` : "";
+  const todoBlock = todos.length ? `## ToDo\n${todosToMarkdown(todos, groups)}` : "";
+  const draftBlock = draft.trim() ? `## 下書き\n${draft.trim()}` : "";
+  const analysisBlock = aiResult.trim() ? `## AI分析（抜粋）\n${aiResult.trim()}` : "";
 
   const body = [goalBlock, todoBlock, draftBlock, analysisBlock].filter(Boolean).join("\n\n");
 
@@ -289,6 +472,7 @@ export default function Page() {
   const [archivedDone, setArchivedDone] = useState(0);
 
   const [busy, setBusy] = useState(false);
+  const [busyTodoId, setBusyTodoId] = useState<string | null>(null);
   const [error, setError] = useState<string>("");
 
   const [toast, setToast] = useState<string>("");
@@ -346,6 +530,12 @@ export default function Page() {
     setStage(Number.isFinite(saved.stage as any) ? Number(saved.stage) : 0);
     setArchivedDone(Number.isFinite(saved.archivedDone as any) ? Number(saved.archivedDone) : 0);
   }, [listId]);
+
+  // aiResult がある場合、カテゴリが「未分類」になってるToDoを軽く修復
+  useEffect(() => {
+    if (!aiResult.trim()) return;
+    setTodos((prev) => repairTodosFromAI(prev, aiResult));
+  }, [aiResult]);
 
   // localStorage 保存（debounce）
   useEffect(() => {
@@ -483,6 +673,90 @@ export default function Page() {
     }
   }
 
+  async function breakdownTodo(todoId: string) {
+    setError("");
+    const target = todos.find((t) => t.id === todoId);
+    if (!target) return;
+
+    if (target.done) {
+      showToast("完了済みは分解しないよ（必要ならチェック外して）");
+      return;
+    }
+
+    if (!target.text.trim()) return;
+
+    snapshotStage("breakdown-todo");
+    setBusyTodoId(todoId);
+
+    try {
+      const parentCat = target.category || "未分類";
+
+      const goalsBlock = goals.length ? goals.map((g) => `- ${g}`).join("\n") : "（なし）";
+
+      const existingTodosBlock = todos
+        .filter((t) => t.id !== todoId)
+        .slice(0, 30)
+        .map((t) => `- ${t.text}`)
+        .join("\n");
+
+      const prompt = `あなたはToDo分解のアシスタント。\n次の「親タスク」を、今すぐ実行できる粒度の小タスクに分解して。\n\n【出力ルール】\n- 形式はこれだけ：\n  [カテゴリ名]\n  - タスク\n  - タスク\n- タスクは5〜8個\n- 1行1アクション。抽象語（検討する/頑張る等）は禁止。\n- 迷ったらカテゴリは「${parentCat}」にしてOK\n- 既存ToDoと重複するものは避ける\n\n【入力】\nリストタイトル: ${list?.title ?? ""}\nゴール:\n${goalsBlock}\n親タスク: ${target.text}\n追記: ${target.note || "（なし）"}\n既存ToDo（参考）:\n${existingTodosBlock || "（なし）"}\n`;
+
+      const res = await postJson<{ text: string }>("/api/ai/breakdown", { text: prompt });
+      const clean = sanitizeAnalysis(res.text || "");
+
+      let candidates = extractActionCandidates(clean);
+      if (!candidates.length) {
+        const bullets = extractPlainBullets(clean);
+        candidates = bullets.map((b) => ({ category: parentCat, action: b }));
+      }
+
+      const groupId = uid("grp");
+
+      const toAdd: TodoItem[] = candidates
+        .slice(0, 8)
+        .map((c) => {
+          const cat = c.category && c.category !== "未分類" ? c.category : parentCat;
+          return {
+            id: uid("todo"),
+            text: normalizeTodoText(c.action),
+            done: false,
+            category: cat,
+            status: "normal" as const,
+            note: "",
+            groupId,
+          };
+        })
+        .filter((t) => t.text);
+
+      if (!toAdd.length) {
+        showToast("分解候補が取れなかった…");
+        return;
+      }
+
+      setGroups((prev) => [...prev, { id: groupId, title: target.text }]);
+
+      setTodos((prev) => {
+        const idx = prev.findIndex((t) => t.id === todoId);
+        if (idx < 0) return prev;
+
+        const existing = new Set(prev.map((t) => t.text));
+        const unique = toAdd.filter((t) => !existing.has(t.text));
+        if (!unique.length) return prev;
+
+        return [...prev.slice(0, idx + 1), ...unique, ...prev.slice(idx + 1)];
+      });
+
+      setStage((s) => s + 1);
+      showToast("さらに分解した（下に追加した）");
+    } catch (e: any) {
+      const msg = `AIでエラー：${e?.message || "unknown"}`;
+      setError(msg);
+      showToast(msg);
+    } finally {
+      setBusyTodoId(null);
+    }
+  }
+
   function toggleDone(id: string) {
     snapshotStage("toggle-done");
     setTodos((prev) =>
@@ -590,7 +864,7 @@ export default function Page() {
           />
 
           <div className={styles.row}>
-            <button className={styles.btnPrimary} onClick={runAnalysis} disabled={busy} type="button">
+            <button className={styles.btnPrimary} onClick={runAnalysis} disabled={busy || busyTodoId !== null} type="button">
               {busy ? "分解中…" : "AIで分解する（ゴール→最初のToDo5つ）"}
             </button>
 
@@ -734,16 +1008,14 @@ export default function Page() {
                         {status === "later" ? "戻す" : "あとまわし"}
                       </button>
 
-                      {/* さらに分解（今は「未完了なら」だけ出す想定） */}
+                      {/* さらに分解（AI） */}
                       <button
                         className={styles.btnMiniPrimary}
                         type="button"
-                        onClick={() => {
-                          // ここは既存の実装に合わせて残す（詳細ロジックはプロジェクト側のまま）
-                          showToast("（さらに分解はこの先で実装）");
-                        }}
+                        disabled={busy || busyTodoId !== null}
+                        onClick={() => breakdownTodo(it.id)}
                       >
-                        さらに分解
+                        {busyTodoId === it.id ? "分解中…" : "さらに分解"}
                       </button>
 
                       <button className={styles.btnDanger} onClick={() => removeTodo(it.id)} type="button">

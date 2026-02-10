@@ -917,3 +917,16 @@
     color: #ff6b81;
   }
 }
+
+/* app/lists/[id]/page.module.css */
+/* ミニボタンのサイズ統一（あとまわし/さらに分解/削除） */
+.btnMiniLater,
+.btnMiniRevive,
+.btnMiniPrimary,
+.btnDanger {
+  padding: 6px 10px;
+  font-size: 12px;
+  line-height: 1;
+  min-height: 32px;
+  border-radius: 999px;
+}
